@@ -1,51 +1,178 @@
 bl_info = {
     "name": "Toggle Default Interpolation",
     "author": "Kyokaz",
-    "version": (1, 0),
+    "version": (2, 0),
     "blender": (2, 80, 0),
     "location": "Action Editor > Interpolation Tab",
     "description": "Toggle Default Interpolation between Constant and Bezier, ChatGPT helped me to code this lol",
     "category": "Animation"
 }
 
-bl_info = {
-    "name": "Toggle Default Interpolation",
-    "author": "Your Name",
-    "version": (1, 0),
-    "blender": (2, 80, 0),
-    "location": "Action Editor, Graph Editor, Dope Sheet, Timeline > Interpolation Tab",
-    "description": "Toggle Default Interpolation between Constant and Bezier",
-    "category": "Animation"
-}
-
 import bpy
 
-# Define a custom operator to toggle interpolation
-class OBJECT_OT_toggle_interpolation(bpy.types.Operator):
-    """Toggle Interpolation between Constant and Bezier"""
-    bl_idname = "object.toggle_interpolation"
-    bl_label = "Toggle Interpolation"
+# Define a custom operator to toggle the default interpolation
+class OBJECT_OT_toggle_default_interpolation(bpy.types.Operator):
+    """Toggle Default Interpolation between Constant and Bezier"""
+    bl_idname = "object.toggle_default_interpolation"
+    bl_label = "Toggle Default"
+    bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        # Get current interpolation type
-        current_interpolation = bpy.context.preferences.edit.keyframe_new_interpolation_type
-        # Toggle interpolation
-        if current_interpolation == 'CONSTANT':
-            bpy.context.preferences.edit.keyframe_new_interpolation_type = 'BEZIER'
+        preferences = bpy.context.preferences.edit
+        preferences.keyframe_new_interpolation_type = 'CONSTANT' if preferences.keyframe_new_interpolation_type != 'CONSTANT' else 'BEZIER'
+        return {'FINISHED'}
+
+# Define a custom operator to toggle interpolation for selected keyframes
+class OBJECT_OT_toggle_interpolation_selected(bpy.types.Operator):
+    """Toggle Interpolation for Selected Keyframes between Constant and Bezier"""
+    bl_idname = "object.toggle_interpolation_selected"
+    bl_label = "Selected Keyframe"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        for obj in bpy.context.selected_objects:
+            if obj.animation_data:
+                for fcurve in obj.animation_data.action.fcurves:
+                    for keyframe in fcurve.keyframe_points:
+                        if keyframe.select_control_point:
+                            keyframe.interpolation = 'CONSTANT' if keyframe.interpolation != 'CONSTANT' else 'BEZIER'
+        return {'FINISHED'}
+
+# Define a custom operator to toggle interpolation for all keyframes (for selected objects)
+class OBJECT_OT_toggle_interpolation_all(bpy.types.Operator):
+    """Toggle Interpolation for All Keyframes between Constant and Bezier (for selected objects)"""
+    bl_idname = "object.toggle_interpolation_all"
+    bl_label = "Selected Objects"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        for obj in bpy.context.selected_objects:
+            if obj.animation_data:
+                for fcurve in obj.animation_data.action.fcurves:
+                    for keyframe in fcurve.keyframe_points:
+                        keyframe.interpolation = 'CONSTANT' if keyframe.interpolation != 'CONSTANT' else 'BEZIER'
+        return {'FINISHED'}
+
+# Define a custom operator to apply interpolation to all keyframes as Constant (for selected objects)
+class OBJECT_OT_apply_all_constant(bpy.types.Operator):
+    """Apply Constant Interpolation to All Keyframes (for selected objects)"""
+    bl_idname = "object.apply_all_constant"
+    bl_label = "Constant"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        for obj in bpy.context.selected_objects:
+            if obj.animation_data:
+                for fcurve in obj.animation_data.action.fcurves:
+                    for keyframe in fcurve.keyframe_points:
+                        keyframe.interpolation = 'CONSTANT'
+        return {'FINISHED'}
+
+# Define a custom operator to apply interpolation to all keyframes as Bezier (for selected objects)
+class OBJECT_OT_apply_all_bezier(bpy.types.Operator):
+    """Apply Bezier Interpolation to All Keyframes (for selected objects)"""
+    bl_idname = "object.apply_all_bezier"
+    bl_label = "Bezier"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        for obj in bpy.context.selected_objects:
+            if obj.animation_data:
+                for fcurve in obj.animation_data.action.fcurves:
+                    for keyframe in fcurve.keyframe_points:
+                        keyframe.interpolation = 'BEZIER'
+        return {'FINISHED'}
+
+# Define a custom operator to apply interpolation to all keyframes as Linear (for selected objects)
+class OBJECT_OT_apply_all_linear(bpy.types.Operator):
+    """Apply Linear Interpolation to All Keyframes (for selected objects)"""
+    bl_idname = "object.apply_all_linear"
+    bl_label = "Linear"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        for obj in bpy.context.selected_objects:
+            if obj.animation_data:
+                for fcurve in obj.animation_data.action.fcurves:
+                    for keyframe in fcurve.keyframe_points:
+                        keyframe.interpolation = 'LINEAR'
+        return {'FINISHED'}
+
+# Define a custom operator to apply interpolation to selected keyframes as Constant (for selected objects)
+class OBJECT_OT_apply_selected_constant(bpy.types.Operator):
+    """Apply Constant Interpolation to Selected Keyframes (for selected objects)"""
+    bl_idname = "object.apply_selected_constant"
+    bl_label = "Constant"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        action = context.object.animation_data.action
+        if action:
+            for obj in bpy.context.selected_objects:
+                if obj.animation_data:
+                    for fcurve in obj.animation_data.action.fcurves:
+                        for keyframe in fcurve.keyframe_points:
+                            if keyframe.select_control_point:
+                                keyframe.interpolation = 'CONSTANT'
+        return {'FINISHED'}
+
+# Define a custom operator to apply interpolation to selected keyframes as Bezier (for selected objects)
+class OBJECT_OT_apply_selected_bezier(bpy.types.Operator):
+    """Apply Bezier Interpolation to Selected Keyframes (for selected objects)"""
+    bl_idname = "object.apply_selected_bezier"
+    bl_label = "Bezier"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        action = context.object.animation_data.action
+        if action:
+            for obj in bpy.context.selected_objects:
+                if obj.animation_data:
+                    for fcurve in obj.animation_data.action.fcurves:
+                        for keyframe in fcurve.keyframe_points:
+                            if keyframe.select_control_point:
+                                keyframe.interpolation = 'BEZIER'
+        return {'FINISHED'}
+
+# Define a custom operator to apply interpolation to selected keyframes as Linear (for selected objects)
+class OBJECT_OT_apply_selected_linear(bpy.types.Operator):
+    """Apply Linear Interpolation to Selected Keyframes (for selected objects)"""
+    bl_idname = "object.apply_selected_linear"
+    bl_label = "Linear"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        action = context.object.animation_data.action
+        if action:
+            for obj in bpy.context.selected_objects:
+                if obj.animation_data:
+                    for fcurve in obj.animation_data.action.fcurves:
+                        for keyframe in fcurve.keyframe_points:
+                            if keyframe.select_control_point:
+                                keyframe.interpolation = 'LINEAR'
+        return {'FINISHED'}
+
+
+# Define a custom operator to toggle auto keying
+class OBJECT_OT_toggle_auto_keying(bpy.types.Operator):
+    """Toggle Auto Keying"""
+    bl_idname = "object.toggle_auto_keying"
+    bl_label = "Auto Keying"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        if hasattr(context, 'scene'):
+            bpy.context.scene.tool_settings.use_keyframe_insert_auto = not bpy.context.scene.tool_settings.use_keyframe_insert_auto
         else:
-            bpy.context.preferences.edit.keyframe_new_interpolation_type = 'CONSTANT'
+            self.report({'ERROR'}, "No active scene found")
         return {'FINISHED'}
 
     def draw(self, context):
-        layout = self.layout
-        layout.operator_context = 'INVOKE_DEFAULT'
-        current_interpolation = bpy.context.preferences.edit.keyframe_new_interpolation_type
-        if current_interpolation == 'CONSTANT':
-            layout.label(text="Interpolation: CONSTANT")
-        else:
-            layout.label(text="Interpolation: BEZIER")
+        if hasattr(context, 'scene'):
+            is_enabled = bpy.context.scene.tool_settings.use_keyframe_insert_auto
+            self.layout.operator("object.toggle_auto_keying", text="Auto Keying: On" if is_enabled else "Auto Keying: Off", icon='AUTO')
 
-# Define a custom panel to place the toggle button in various editors
+# Define a custom panel to place the toggle buttons in various editors
 class OBJECT_PT_toggle_interpolation_panel(bpy.types.Panel):
     """Toggle Interpolation Panel"""
     bl_label = "Interpolation"
@@ -60,17 +187,48 @@ class OBJECT_PT_toggle_interpolation_panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("object.toggle_interpolation")
-        current_interpolation = bpy.context.preferences.edit.keyframe_new_interpolation_type
-        if current_interpolation == 'CONSTANT':
-            layout.label(text="Interpolation: CONSTANT")
-        else:
-            layout.label(text="Interpolation: BEZIER")
 
+        # Draw Auto Keying button
+        layout.operator("object.toggle_auto_keying", text="Auto Keying: On" if bpy.context.scene.tool_settings.use_keyframe_insert_auto else "Auto Keying: Off", icon='AUTO')
+
+        layout.separator()
+        layout.label(text="Toggle Default Interpolation:")
+        layout.operator("object.toggle_default_interpolation", icon='IPO_CONSTANT' if bpy.context.preferences.edit.keyframe_new_interpolation_type == 'CONSTANT' else 'IPO_BEZIER')
+        layout.separator()
+
+        # Display text status
+        preferences = bpy.context.preferences.edit
+        interpolation_mode = preferences.keyframe_new_interpolation_type.capitalize()
+        layout.label(text=f"Current Default: {interpolation_mode}")
+
+        layout.separator()
+        layout.label(text="Toggle to Selected:")
+        row = layout.row()
+        row.operator("object.toggle_interpolation_selected", text="Keyframe", icon='KEY_HLT')
+        row.operator("object.toggle_interpolation_all", text="Object", icon='CONSTRAINT')
+        layout.separator()
+        layout.label(text="Apply to Selected Object:")
+        layout.operator("object.apply_all_constant", icon='IPO_CONSTANT')
+        layout.operator("object.apply_all_bezier", icon='IPO_BEZIER')
+        layout.operator("object.apply_all_linear", icon='IPO_LINEAR')
+        layout.separator()
+        layout.label(text="Apply to Selected Keyframe:")
+        layout.operator("object.apply_selected_constant", icon='IPO_CONSTANT')
+        layout.operator("object.apply_selected_bezier", icon='IPO_BEZIER')
+        layout.operator("object.apply_selected_linear", icon='IPO_LINEAR')
 
 classes = (
-    OBJECT_OT_toggle_interpolation,
-    OBJECT_PT_toggle_interpolation_panel
+    OBJECT_OT_toggle_default_interpolation,
+    OBJECT_OT_toggle_interpolation_selected,
+    OBJECT_OT_toggle_interpolation_all,
+    OBJECT_OT_apply_all_constant,
+    OBJECT_OT_apply_all_bezier,
+    OBJECT_OT_apply_all_linear,
+    OBJECT_OT_apply_selected_constant,
+    OBJECT_OT_apply_selected_bezier,
+    OBJECT_OT_apply_selected_linear,
+    OBJECT_OT_toggle_auto_keying,
+    OBJECT_PT_toggle_interpolation_panel,
 )
 
 def register():
@@ -83,3 +241,4 @@ def unregister():
 
 if __name__ == "__main__":
     register()
+
