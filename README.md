@@ -4,8 +4,12 @@ Set of animation tools for Blender, originally made for my own animation project
 ## Current Main Features:
 ### Toggle Default Interpolation
 Allows user to toggle the default interpolation between Constant and Bezier without going into the preference settings.
-### Quick Bake
-Allows user to quickly bake selected keyframe range with custom steps.
+### Bake Per Steps
+Allows user to quickly Bake selected keyframe range with custom steps using [_bpy.ops.nla.bak_](https://docs.blender.org/api/current/bpy.ops.nla.html#bpy.ops.nla.bake) operator.
+### Add Per Steps
+Similar to Bake Per Steps, this one only adds keyframe(s) instead of replacing it.
+### Delete Per Steps
+Deletes keyframe with custom steps.
 
 ## How to Install
 1. Download the [latest release](https://github.com/Kyokaz/toggle_default_interpolation/releases) 
