@@ -1,13 +1,3 @@
-bl_info = {
-    "name": "Toggle Default Interpolation",
-    "author": "Kyokaz",
-    "version": (2, 0),
-    "blender": (2, 80, 0),
-    "location": "Action Editor > Interpolation Tab",
-    "description": "Toggle Default Interpolation between Constant and Bezier, ChatGPT helped me to code this lol",
-    "category": "Animation"
-}
-
 import bpy
 
 # Define a custom operator to toggle the default interpolation
@@ -171,15 +161,61 @@ class OBJECT_OT_toggle_auto_keying(bpy.types.Operator):
         if hasattr(context, 'scene'):
             is_enabled = bpy.context.scene.tool_settings.use_keyframe_insert_auto
             self.layout.operator("object.toggle_auto_keying", text="Auto Keying: On" if is_enabled else "Auto Keying: Off", icon='AUTO')
+            
+# Define a custom operator to add keyframes every 2 steps
+class OBJECT_OT_add_keyframes_operator(bpy.types.Operator):
+    """Operator to add keyframes with custom step size between selected keyframes"""
+    bl_idname = "object.add_keyframes_operator"
+    bl_label = "Quick Bake"
+
+    steps: bpy.props.IntProperty(name="Steps", default=2, min=1, description="Number of steps between keyframes")
+
+    @classmethod
+    def poll(cls, context):
+        return context.object is not None and context.object.animation_data is not None
+
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+
+    def execute(self, context):
+        obj = context.object
+        ad = obj.animation_data
+        action = ad.action
+
+        if action is None:
+            self.report({'WARNING'}, "No action found")
+            return {'CANCELLED'}
+
+        for fc in action.fcurves:
+            keyframes = [kp for kp in fc.keyframe_points if kp.select_control_point]
+
+            for i in range(len(keyframes) - 1):
+                start_kp = keyframes[i]
+                end_kp = keyframes[i + 1]
+
+                start_frame = int(start_kp.co.x)
+                end_frame = int(end_kp.co.x)
+                start_value = start_kp.co.y
+                end_value = end_kp.co.y
+
+                for frame in range(start_frame + self.steps, end_frame, self.steps):
+                    t = (frame - start_frame) / (end_frame - start_frame)
+                    interpolated_value = (1 - t) * start_value + t * end_value
+                    fc.keyframe_points.insert(frame, interpolated_value)
+
+        self.report({'INFO'}, f"Keyframes added successfully with step size {self.steps}")
+        return {'FINISHED'}
+
 
 # Define a custom panel to place the toggle buttons in various editors
 class OBJECT_PT_toggle_interpolation_panel(bpy.types.Panel):
     """Toggle Interpolation Panel"""
-    bl_label = "Interpolation"
+    bl_label = "Kyokaz's Toolbox"
     bl_idname = "OBJECT_PT_toggle_interpolation_panel"
     bl_space_type = 'DOPESHEET_EDITOR'
     bl_region_type = 'UI'
-    bl_category = 'Interpolation'
+    bl_category = 'Kyokaz Toolbox'
 
     @classmethod
     def poll(cls, context):
@@ -190,6 +226,10 @@ class OBJECT_PT_toggle_interpolation_panel(bpy.types.Panel):
 
         # Draw Auto Keying button
         layout.operator("object.toggle_auto_keying", text="Auto Keying: On" if bpy.context.scene.tool_settings.use_keyframe_insert_auto else "Auto Keying: Off", icon='AUTO')
+        
+        layout.separator()
+        layout.label(text="Bake Selected Keyframes:")
+        layout.operator("object.add_keyframes_operator", icon='KEY_HLT')
 
         layout.separator()
         layout.label(text="Toggle Default Interpolation:")
@@ -200,25 +240,30 @@ class OBJECT_PT_toggle_interpolation_panel(bpy.types.Panel):
         preferences = bpy.context.preferences.edit
         interpolation_mode = preferences.keyframe_new_interpolation_type.capitalize()
         layout.label(text=f"Current Default: {interpolation_mode}")
-
+        
         layout.separator()
         layout.label(text="Toggle to Selected:")
         row = layout.row()
         row.operator("object.toggle_interpolation_selected", text="Keyframe", icon='KEY_HLT')
         row.operator("object.toggle_interpolation_all", text="Object", icon='CONSTRAINT')
+        
         layout.separator()
         layout.label(text="Apply to Selected Object:")
-        layout.operator("object.apply_all_constant", icon='IPO_CONSTANT')
-        layout.operator("object.apply_all_bezier", icon='IPO_BEZIER')
-        layout.operator("object.apply_all_linear", icon='IPO_LINEAR')
+        row = layout.row()
+        row.operator("object.apply_all_constant", icon='IPO_CONSTANT')
+        row.operator("object.apply_all_bezier", icon='IPO_BEZIER')
+        row.operator("object.apply_all_linear", icon='IPO_LINEAR')
+        
         layout.separator()
         layout.label(text="Apply to Selected Keyframe:")
-        layout.operator("object.apply_selected_constant", icon='IPO_CONSTANT')
-        layout.operator("object.apply_selected_bezier", icon='IPO_BEZIER')
-        layout.operator("object.apply_selected_linear", icon='IPO_LINEAR')
+        row = layout.row()
+        row.operator("object.apply_selected_constant", icon='IPO_CONSTANT')
+        row.operator("object.apply_selected_bezier", icon='IPO_BEZIER')
+        row.operator("object.apply_selected_linear", icon='IPO_LINEAR')
 
 classes = (
     OBJECT_OT_toggle_default_interpolation,
+    OBJECT_OT_add_keyframes_operator,
     OBJECT_OT_toggle_interpolation_selected,
     OBJECT_OT_toggle_interpolation_all,
     OBJECT_OT_apply_all_constant,
@@ -241,4 +286,3 @@ def unregister():
 
 if __name__ == "__main__":
     register()
-
