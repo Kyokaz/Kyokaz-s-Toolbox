@@ -1,9 +1,10 @@
 # Kyokaz's Toolbox
+Set of animation tools for Blender, originally made for my own animation project, decided to share them here.
 
-# Current Main Features:
-## Toggle Default Interpolation
+## Current Main Features:
+### Toggle Default Interpolation
 Allows user to toggle the default interpolation between Constant and Bezier without going into the preference settings.
-## Quick Bake
+### Quick Bake
 Allows user to quickly bake selected keyframe range with custom steps.
 
 ## How to Install
