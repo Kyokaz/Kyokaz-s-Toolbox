@@ -1,5 +1,10 @@
-# Toggle Default Interpolation
-Allows you to toggle the default interpolation in Blender between Constant and Bezier without going into the preference settings.
+# Kyokaz's Toolbox
+
+# Current Main Features:
+## Toggle Default Interpolation
+Allows user to toggle the default interpolation between Constant and Bezier without going into the preference settings.
+## Quick Bake
+Allows user to quickly bake selected keyframe range with custom steps.
 
 ## How to Install
 1. Download the [latest release](https://github.com/Kyokaz/toggle_default_interpolation/releases) 
