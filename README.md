@@ -1,5 +1,6 @@
 # Kyokaz's Toolbox
 Set of animation tools for Blender, originally made for my own animation project, decided to share them here.
+### (Some features might not be working properly for Blender 4.1 or above.)
 
 ## Current Main Features:
 ### Toggle Default Interpolation
