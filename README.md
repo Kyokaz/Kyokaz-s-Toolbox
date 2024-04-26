@@ -29,3 +29,6 @@ Automatically disables render for all hidden objects in the viewport in case you
 
 ## How to Use
 The toggle button should appear on the side panel (N-Panel) in Timeline Editor, Action Editor, Graph Editor, Dope Sheet Editor, and Viewport Editor 'Item' (for Rendering Tools).
+
+## Disclaimer
+This code was written with the help of ChatGPT, I'm not fully familiar with Python coding yet (planning to learn more once I graduate), so if you have any suggestions on how to make this better, please let me know!
