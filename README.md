@@ -25,7 +25,7 @@ Automatically disables render for all hidden objects in the viewport in case you
 # Quick Camera
 Sets of new operators to add cameras based on your viewport with few useful features.
 
-![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/a47124d1-4961-4139-a892-8a4a1baa2016)
+![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/9b846afd-5958-42cd-b981-ddc398b8eed3)
 
 ### Add Camera:
 - Instantly add a camera based on the viewport
