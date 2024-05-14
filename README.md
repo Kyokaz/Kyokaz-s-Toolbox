@@ -1,4 +1,4 @@
-# Kyokaz's Toolbox 2.4.1
+# Kyokaz's Toolbox 2.4.2
 Set of animation tools for Blender, originally made for my own animation project and decided to share them here.
 ### (Some features might not be working properly for Blender 4.1 or above.)
 
@@ -25,7 +25,8 @@ Automatically disables render for all hidden objects in the viewport in case you
 # Quick Camera
 Sets of new operators to add cameras based on your viewport with few useful features.
 
-![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/9b846afd-5958-42cd-b981-ddc398b8eed3)
+![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/62f300c2-ef01-4a72-b37e-0331f44866ad)
+
 
 ### Add Camera:
 - Instantly add a camera based on the viewport
@@ -36,7 +37,7 @@ Sets of new operators to add cameras based on your viewport with few useful feat
 ### Copy Camera & Copy Shot
 - Instantly copy current active camera attributes/properties to a new camera. (Copy Shot works the same but with the bind/marker added)
 ### Camera Status:
-Shows the total frame of each camera shot (It counts all the frames in between each marker that has the "Shot [number]" name.
+Shows useful information for each camera like frame range and total frames.
 
 ## Known Issues:
 There might be some issues with how the add camera button works as it might require you to view the current active camera before adding the next one. (This should be already be fixed, but something to keep in mind)
