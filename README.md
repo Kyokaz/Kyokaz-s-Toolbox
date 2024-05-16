@@ -25,8 +25,7 @@ Automatically disables render for all hidden objects in the viewport in case you
 # Quick Camera
 Sets of new operators to add cameras based on your viewport with few useful features.
 
-![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/62f300c2-ef01-4a72-b37e-0331f44866ad)
-
+![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/a4c94a84-3bbe-46aa-bbed-84e0e40c193d)
 
 ### Add Camera:
 - Instantly add a camera based on the viewport
@@ -38,6 +37,9 @@ Sets of new operators to add cameras based on your viewport with few useful feat
 - Instantly copy current active camera attributes/properties to a new camera. (Copy Shot works the same but with the bind/marker added)
 ### Camera Status:
 Shows useful information for each camera like frame range and total frames.
+### Quick Pie Menu:
+![blender_ZBvnQXZwms](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/5431e41d-263d-47fa-94d9-4de1251019cb)
+Quickly add a new camera using the pie menu (key bind "V" by default, customizable in Preferences setting).
 
 ## Known Issues:
 There might be some issues with how the add camera button works as it might require you to view the current active camera before adding the next one. (This should be already be fixed, but something to keep in mind)
