@@ -1,4 +1,4 @@
-# Kyokaz's Toolbox 2.4.2
+# Kyokaz's Toolbox 2.4.3
 Set of animation tools for Blender, originally made for my own animation project and decided to share them here.
 ### (Some features might not be working properly for Blender 4.1 or above.)
 
@@ -39,7 +39,8 @@ Sets of new operators to add cameras based on your viewport with few useful feat
 Shows useful information for each camera like frame range and total frames.
 ### Quick Pie Menu:
 ![blender_ZBvnQXZwms](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/5431e41d-263d-47fa-94d9-4de1251019cb)
-Quickly add a new camera using the pie menu (key bind "V" by default, customizable in Preferences setting).
+
+Quickly add a new camera using the pie menu (key bind "V" by default, customizable in the Preferences setting).
 
 ## Known Issues:
 There might be some issues with how the add camera button works as it might require you to view the current active camera before adding the next one. (This should be already be fixed, but something to keep in mind)
