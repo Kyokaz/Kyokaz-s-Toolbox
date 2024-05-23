@@ -1,4 +1,4 @@
-# Kyokaz's Toolbox 2.4.3
+# Kyokaz's Toolbox 2.4.5
 Set of animation tools for Blender, originally made for my own animation project and decided to share them here.
 ### (Some features might not be working properly for Blender 4.1 or above.)
 
@@ -25,7 +25,7 @@ Automatically disables render for all hidden objects in the viewport in case you
 # Quick Camera
 Sets of new operators to add cameras based on your viewport with few useful features.
 
-![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/a4c94a84-3bbe-46aa-bbed-84e0e40c193d)
+![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/8a14d063-a1dd-4146-92e1-bb3fd6d2ce93)
 
 ### Add Camera:
 - Instantly add a camera based on the viewport
@@ -41,9 +41,15 @@ Shows useful information for each camera like frame range and total frames.
 ![blender_ZBvnQXZwms](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/5431e41d-263d-47fa-94d9-4de1251019cb)
 
 Quickly add a new camera using the pie menu (key bind "V" by default, customizable in the Preferences setting).
+### Viewport Render Animation
+![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/3daecc1e-fc17-465e-92c2-c79bfcd35c5a)
+
+Viewport Render Animation is more accessible now with the option to turn on a customizable timecode, and the ability to preview the video after render.
+
 
 ## Known Issues:
-There might be some issues with how the add camera button works as it might require you to view the current active camera before adding the next one. (This should be already be fixed, but something to keep in mind)
+- There might be some issues with how the add camera button works as it might require you to view the current active camera before adding the next one. (This should be already be fixed, but something to keep in mind)
+- If you receive an error when updating the addon, make sure to disable and remove the addon in the preference setting, restart Blender, and install the addon again.
 
 # How to Install
 1. Download the [latest release](https://github.com/Kyokaz/toggle_default_interpolation/releases) 
