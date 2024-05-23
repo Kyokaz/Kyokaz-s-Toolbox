@@ -1,6 +1,5 @@
 # Kyokaz's Toolbox 2.4.5
-Set of animation tools for Blender, originally made for my own animation project and decided to share them here.
-### (Some features might not be working properly for Blender 4.1 or above.)
+Set of animation tools for Blender, originally made for my own animation project, and decided to share them here.
 
 # Animation Tools
 ![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/e3656103-cba3-4e13-b1db-1b537c0eefcd)
