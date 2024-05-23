@@ -39,6 +39,11 @@ Shows useful information for each camera like frame range and total frames.
 ### Quick Pie Menu:
 ![blender_ZBvnQXZwms](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/5431e41d-263d-47fa-94d9-4de1251019cb)
 
+### Set Preview Range
+![CameraUpdate_preview](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/5e18ce2e-ed02-4ba8-a277-e21be84b36d3)
+
+Set a preview range for a specific camera shot.
+
 Quickly add a new camera using the pie menu (key bind "V" by default, customizable in the Preferences setting).
 ### Viewport Render Animation
 ![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/3daecc1e-fc17-465e-92c2-c79bfcd35c5a)
