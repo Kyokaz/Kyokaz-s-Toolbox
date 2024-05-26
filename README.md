@@ -30,10 +30,10 @@ Sets of new operators to add cameras based on your viewport with few useful feat
 
 ### Add Camera:
 - Instantly add a camera based on the viewport
-- An added camera will be inserted into its corresponding collection.
+- An added camera will be inserted into its custom collection.
 ### Add Shot:
 - Instantly add and bind a camera in the current frame (useful for camera switching in animation)
-- An added camera will be inserted into its corresponding collection with different naming conventions.
+- Am added camera will be inserted into its custom collection with custom naming conventions.
 ### Copy Camera & Copy Shot
 - Instantly copy current active camera attributes/properties to a new camera. (Copy Shot works the same but with the bind/marker added)
 ### Camera Status:
