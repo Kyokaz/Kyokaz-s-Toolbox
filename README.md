@@ -1,10 +1,11 @@
-# Kyokaz's Toolbox 2.4.5
-Set of animation tools for Blender, originally made for my own animation project, and decided to share them here.
+# Kyokaz's Toolbox 2.4.6
+A set of animation tools for Blender was originally made for my own animation project, and decided to share them here.
 
 # Animation Tools
-![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/e3656103-cba3-4e13-b1db-1b537c0eefcd)
+![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/a5fdacc8-5380-400b-986b-53476bb34082)
+
 ### Toggle Default Interpolation
-Allows user to toggle the default interpolation between Constant and Bezier without going into the preference settings.
+Allows users to toggle the default interpolation between Constant and Bezier without going into the preference settings.
 ### Bake Per Steps
 Allows the user to quickly Bake selected keyframe range with custom steps using [_bpy.ops.nla.bak_](https://docs.blender.org/api/current/bpy.ops.nla.html#bpy.ops.nla.bake) operator.
 ### Add Per Steps
@@ -13,7 +14,8 @@ Similar to Bake Per Steps, this one only adds keyframe(s) instead of replacing i
 Deletes keyframe with custom steps.
 
 # Rendering Tools
-![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/855e3639-b580-47ec-8f75-f79c033567da)
+![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/ddc2faac-3aba-44e1-8c49-2c8a6c517ecb)
+
 ### Disable Render for Hidden Objects:
 Automatically disables render for all hidden objects in the viewport in case you forgot to disable them manually for a render, Excluded Collection is added to prevent specific objects from being applied.
 
@@ -24,7 +26,7 @@ Automatically disables render for all hidden objects in the viewport in case you
 # Quick Camera
 Sets of new operators to add cameras based on your viewport with few useful features.
 
-![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/39aca65c-0e22-452a-91f1-b460135f1567)
+![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/a71095e1-7247-4f99-8b15-5be47ae3452f)
 
 ### Add Camera:
 - Instantly add a camera based on the viewport
@@ -36,11 +38,14 @@ Sets of new operators to add cameras based on your viewport with few useful feat
 - Instantly copy current active camera attributes/properties to a new camera. (Copy Shot works the same but with the bind/marker added)
 ### Camera Status:
 Shows useful information for each camera like frame range and total frames.
+
+![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/51faf58a-9e4e-4239-9cdd-8a25cce26ef7)
+
 ### Quick Pie Menu:
 ![blender_ZBvnQXZwms](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/5431e41d-263d-47fa-94d9-4de1251019cb)
 
 ### Set Preview Range
-![CameraUpdate_preview](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/5e18ce2e-ed02-4ba8-a277-e21be84b36d3)
+![blender_dqxyN2RnzJ](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/2b1aed8d-d224-442b-9881-29fd01e5435b)
 
 Set a preview range for a specific camera shot.
 
@@ -52,8 +57,9 @@ Viewport Render Animation is more accessible now with the option to turn on a cu
 
 
 ## Known Issues:
-- There might be some issues with how the add camera button works as it might require you to view the current active camera before adding the next one. (This should be already be fixed, but something to keep in mind)
-- If you receive an error when updating the addon, make sure to disable and remove the addon in the preference setting, restart Blender, and install the addon again.
+- Both "Remove All Shot" and "Remove All Cameras" seem to remove every camera in the current collection whether they're marked as a Shot or not.
+- If you received an error when updating the addon, make sure to disable and remove the addon in the preference setting, restart Blender, and install the addon again.
+  This seems to be an issue with how the addon handles class register.
 
 # How to Install
 1. Download the [latest release](https://github.com/Kyokaz/toggle_default_interpolation/releases) 
