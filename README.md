@@ -1,4 +1,4 @@
-# Kyokaz's Toolbox 2.4.7
+# Kyokaz's Toolbox 2.4.8
 A set of animation tools for Blender was originally made for my own animation project, and decided to share them here.
 
 # Animation Tools
@@ -14,7 +14,8 @@ Similar to Bake Per Steps, this one only adds keyframe(s) instead of replacing i
 Deletes keyframe with custom steps.
 
 # Rendering Tools
-![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/ddc2faac-3aba-44e1-8c49-2c8a6c517ecb)
+
+![blender_gOaPnGPe4O](https://github.com/user-attachments/assets/12a2396e-86f2-4319-831d-34de4bb2b671)
 
 ### Disable Render for Hidden Objects:
 Automatically disables render for all hidden objects in the viewport in case you forgot to disable them manually for a render, Excluded Collection is added to prevent specific objects from being applied.
@@ -26,7 +27,7 @@ Automatically disables render for all hidden objects in the viewport in case you
 # Quick Camera
 Sets of new operators to add cameras based on your viewport with few useful features.
 
-![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/a71095e1-7247-4f99-8b15-5be47ae3452f)
+![image](https://github.com/user-attachments/assets/23050fdd-6200-4b63-bbdf-f47609f49353)
 
 ### Add Camera:
 - Instantly add a camera based on the viewport
@@ -39,13 +40,13 @@ Sets of new operators to add cameras based on your viewport with few useful feat
 ### Camera Status:
 Shows useful information for each camera like frame range and total frames.
 
-![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/51faf58a-9e4e-4239-9cdd-8a25cce26ef7)
+![blender_zuI8Q4WKNh](https://github.com/user-attachments/assets/74e796a3-9362-485e-8971-9dda9e7e1a40)
 
 ### Quick Pie Menu:
 ![blender_ZBvnQXZwms](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/5431e41d-263d-47fa-94d9-4de1251019cb)
 
 ### Set Preview Range
-![blender_dqxyN2RnzJ](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/2b1aed8d-d224-442b-9881-29fd01e5435b)
+![blender_z9NF6xBQRT](https://github.com/user-attachments/assets/86ac2c1c-deb7-4db3-b98d-63e19bac43f7)
 
 Set a preview range for a specific camera shot.
 
@@ -67,7 +68,9 @@ Viewport Render Animation is more accessible now with the option to turn on a cu
 3. Select the Python file and enable the add-on
 
 # How to Use
-The toggle button should appear on the side panel (N-Panel) in Timeline Editor, Action Editor, Graph Editor, Dope Sheet Editor, and Viewport Editor 'Tool' Panel.
+The toggle button should appear on the side panel (N-Panel) in Timeline Editor, Action Editor, Graph Editor, Dope Sheet Editor, and Viewport Editor 'Toolbox' Panel.
+Animation Tools can be found in animation related quick panels (Timeline Editor, Action Editor, Graph Editor, Dope Sheet Editor).
+Quick Camera and Render Tools can be found in Toolbox Panel (Can be turned off) or in Scene Properties. 
 
 ## Disclaimer
-This code was written with the help of ChatGPT, I'm not fully familiar with Python coding yet (planning to learn more once I graduate), so if you have any suggestions on how to make this better, please let me know!
+This code was written with the help of Claude.AI, I'm not fully familiar with Python coding yet (planning to learn more once I graduate), so if you have any suggestions on how to make this better, please let me know!
