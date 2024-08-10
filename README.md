@@ -1,4 +1,4 @@
-# Kyokaz's Toolbox 2.4.8
+# Kyokaz's Toolbox
 A set of animation tools for Blender was originally made for my own animation project, and decided to share them here.
 
 # Animation Tools
