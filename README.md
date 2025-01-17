@@ -59,8 +59,6 @@ Viewport Render Animation is more accessible now with the option to turn on a cu
 
 ## Known Issues:
 - Both "Remove All Shot" and "Remove All Cameras" seem to remove every camera in the current collection whether they're marked as a Shot or not.
-- If you received an error when updating the addon, make sure to disable and remove the addon in the preference setting, restart Blender, and install the addon again.
-  This seems to be an issue with how the addon handles class register.
 
 # How to Install
 1. Download the [latest release](https://github.com/Kyokaz/toggle_default_interpolation/releases) 
