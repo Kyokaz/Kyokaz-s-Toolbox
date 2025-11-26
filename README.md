@@ -57,8 +57,13 @@ Quickly add a new camera using the pie menu (key bind "V" by default, customizab
 Viewport Render Animation is more accessible now with the option to turn on a customizable timecode, and the ability to preview the video after render.
 
 
-## Known Issues:
-- Both "Remove All Shot" and "Remove All Cameras" seem to remove every camera in the current collection whether they're marked as a Shot or not.
+## New in QuickCamera: Notes/Annotation Overlay
+![blender_qnxi0X80ac (2)](https://github.com/user-attachments/assets/a4c92a6e-69aa-4db4-9b9a-0e7216cfefda)
+Added a feature to add notes or annotations on camera/shot with the option to change font & background color and size.
+(Scroll to change scale, shift+scroll to change font color,  and ctrl+scroll to change background opacity)
+
+![blender_ksESpK2tdG (2)](https://github.com/user-attachments/assets/e59c41e1-5b61-4ac9-aaff-33979574e4ca)
+Added a toggleable camera Info overlay 
 
 # How to Install
 1. Download the [latest release](https://github.com/Kyokaz/toggle_default_interpolation/releases) 
