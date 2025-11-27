@@ -1,8 +1,7 @@
-# File: __init__.py
 bl_info = {
-    "name": "Kyokaz's Toolbox",
-    "author": "Kyokaz, ChatGPT",
-    "version": (2, 4, 5),
+    "name": "KyokazToolbox",
+    "author": "Kyokaz",
+    "version": (2, 6, 0),
     "blender": (3, 0, 0),
     "location": "",
     "description": "Animation Toolbox",
@@ -10,219 +9,539 @@ bl_info = {
 }
 
 import bpy
-from .operators import (
-    OBJECT_OT_toggle_default_interpolation,
-    OBJECT_OT_bake_keyframes_per_steps,
-    OBJECT_OT_add_keyframes_operator,
-    OBJECT_OT_delete_keyframes_per_steps,
-    OBJECT_OT_toggle_interpolation_selected,
-    OBJECT_OT_toggle_interpolation_all,
-    OBJECT_OT_apply_all_constant,
-    OBJECT_OT_apply_all_bezier,
-    OBJECT_OT_apply_all_linear,
-    OBJECT_OT_apply_selected_constant,
-    OBJECT_OT_apply_selected_bezier,
-    OBJECT_OT_apply_selected_linear,
-    OBJECT_OT_toggle_auto_keying,
-    OBJECT_OT_ViewportRenderConfirm,
-    SCENE_OT_JumpToMarker,
-    SCENE_OT_RemoveMarkerAndCamera,
-    SCENE_OT_RemoveAllShotCameras,
-    SCENE_OT_SelectCamera,
-    SCENE_OT_SetPreviewRange,
-    OBJECT_OT_OpenOutputDirectory,
-    SelectHiddenDisableRenderOperator,
-    CreateExcludeHiddenCollectionOperator,
-    CustomNameProperties,
-    AddCameraButton,
-    AddCameraWithMarkerButton,
-    AddCameraCopyPropertiesButton,
-    AddCameraShotCopyPropertiesButton,
-    ShowPopupMessageOperator,
-    WM_OT_capture_keymap,
-    WM_OT_remove_keymap,
-    VIEW3D_MT_PIE_QuickCamera
-)
-from .panels import (
-    OBJECT_PT_toggle_interpolation_panel,
-    OBJECT_PT_SelectHiddenDisableRenderPanel,
-    OBJECT_PT_CameraTools_Status,
-    OBJECT_PT_CameraTools
-)
+from bpy.types import AddonPreferences
+from bpy.props import StringProperty, BoolProperty, PointerProperty
+from . import operators
+from . import panels
+from . import utils
 
-def draw_viewport_header(self, context):
-    preferences = context.preferences.addons[__name__].preferences
-    if preferences.show_viewport_button:
-        self.layout.operator("object.viewport_render_confirm", text="Viewport Render", icon='RENDER_STILL')
+addon_keymaps = []
 
-class MyAddonPreferences(bpy.types.AddonPreferences):
+def _redraw_viewports(context):
+    """Helper function to redraw all 3D viewports."""
+    for window in context.window_manager.windows:
+        for area in window.screen.areas:
+            if area.type == 'VIEW_3D':
+                area.tag_redraw()
+
+class MyAddonPreferences(AddonPreferences):
     bl_idname = __package__
 
-    key: bpy.props.StringProperty(
-        name="Key",
+    # Quick Camera Pie Menu
+
+    quick_camera_key: StringProperty(
+        name="Quick Camera Key",
         default='V',
         update=lambda self, context: update_keymap(self, context)
     )
-    ctrl: bpy.props.BoolProperty(
+    quick_camera_ctrl: BoolProperty(
         name="Ctrl",
         default=False,
         update=lambda self, context: update_keymap(self, context)
     )
-    alt: bpy.props.BoolProperty(
+    quick_camera_alt: BoolProperty(
         name="Alt",
         default=False,
         update=lambda self, context: update_keymap(self, context)
     )
-    shift: bpy.props.BoolProperty(
+    quick_camera_shift: BoolProperty(
         name="Shift",
         default=False,
         update=lambda self, context: update_keymap(self, context)
     )
-    capture_key: bpy.props.BoolProperty(
+    
+    # Camera Controls
+
+    camera_controls_key: StringProperty(
+        name="Camera Controls Key",
+        default='V',
+        update=lambda self, context: update_keymap(self, context)
+    )
+    camera_controls_ctrl: BoolProperty(
+        name="Ctrl",
+        default=False,
+        update=lambda self, context: update_keymap(self, context)
+    )
+    camera_controls_alt: BoolProperty(
+        name="Alt",
+        default=False,
+        update=lambda self, context: update_keymap(self, context)
+    )
+    camera_controls_shift: BoolProperty(
+        name="Shift",
+        default=True,
+        update=lambda self, context: update_keymap(self, context)
+    )   
+    
+    capture_key: BoolProperty(
         name="Capture Key",
         default=False
-    )
+    )  
     
-    show_viewport_button: bpy.props.BoolProperty(
+    # Favorite Camera
+
+    favorite_camera_key: StringProperty(
+        name="Favorite Camera Key",
+        default='V',
+        update=lambda self, context: update_keymap(self, context)
+    )
+    favorite_camera_ctrl: BoolProperty(
+        name="Ctrl",
+        default=False,
+        update=lambda self, context: update_keymap(self, context)
+    )
+    favorite_camera_alt: BoolProperty(
+        name="Alt",
+        default=True,
+        update=lambda self, context: update_keymap(self, context)
+    )
+    favorite_camera_shift: BoolProperty(
+        name="Shift",
+        default=False,
+        update=lambda self, context: update_keymap(self, context)
+    )
+
+    show_viewport_button: BoolProperty(
         name="Show the Viewport Render button in the 3D Viewport header",
         description="Show the Viewport Render button in the 3D Viewport header",
         default=True
     )
 
+    show_pin_button: BoolProperty(
+        name="Show the Pin button in the 3D Viewport header",
+        description="Show the Pin button in the 3D Viewport header",
+        default=True
+    )
+
+    show_render_tools_n_panel: BoolProperty(
+        name="Show Render Tools in N-panel",
+        description="Show the Render Tools panel in the N-panel",
+        default=True
+    )
+    show_quick_camera_n_panel: BoolProperty(
+        name="Show Quick Camera in N-panel",
+        description="Show the Quick Camera panel in the N-panel",
+        default=True
+    )
+    show_shot_list_n_panel: BoolProperty(
+        name="Show Shot List in N-panel",
+        description="Show the Shot List panel in the N-panel",
+        default=True
+    )
+    show_camera_list_n_panel: BoolProperty(
+        name="Show Camera List in N-panel",
+        description="Show the Camera List panel in the N-panel",
+        default=True
+    )
+
+    show_camera_info_overlay: BoolProperty(
+        name="Show Camera Info Overlay",
+        description="Show camera information overlay in viewport when in camera view",
+        default=True,
+        update=lambda self, context: operators.toggle_camera_info_overlay(self.show_camera_info_overlay)
+    )
+    
+    show_camera_notes: BoolProperty(
+        name="Show Camera Notes",
+        description="Show camera notes overlay in viewport when in camera view",
+        default=True,
+        update=lambda self, context: operators.toggle_camera_notes_overlay(self.show_camera_notes)
+    )
+    
+    # Camera Info Overlay Settings
+    camera_info_position_x: bpy.props.IntProperty(
+        name="Position X",
+        description="Horizontal position from left of the camera info overlay",
+        default=30,
+        min=0,
+        max=4000,
+        update=lambda self, context: _redraw_viewports(context)
+    )
+    
+    camera_info_position_y: bpy.props.IntProperty(
+        name="Position Y",
+        description="Vertical position from bottom of the camera info overlay",
+        default=100,
+        min=0,
+        max=4000,
+        update=lambda self, context: _redraw_viewports(context)
+    )
+    
+    camera_info_font_size: bpy.props.IntProperty(
+        name="Font Size",
+        description="Font size for camera info text",
+        default=15,
+        min=8,
+        max=72,
+        update=lambda self, context: _redraw_viewports(context)
+    )
+    
+    camera_info_single_line: BoolProperty(
+        name="Single Line Layout",
+        description="Display all info in a single line instead of multiple lines",
+        default=False,
+        update=lambda self, context: _redraw_viewports(context)
+    )
+    
+    camera_info_separator: StringProperty(
+        name="Separator",
+        description="Separator character for single line layout",
+        default=" | ",
+        maxlen=10,
+        update=lambda self, context: _redraw_viewports(context)
+    )
+    
+    # Info display toggles
+    camera_info_show_name: BoolProperty(
+        name="Show Camera/Shot Name",
+        description="Display camera or shot name",
+        default=True,
+        update=lambda self, context: _redraw_viewports(context)
+    )
+    
+    camera_info_show_frames: BoolProperty(
+        name="Show Frame Range",
+        description="Display frame range for shots",
+        default=True,
+        update=lambda self, context: _redraw_viewports(context)
+    )
+    
+    camera_info_show_focal: BoolProperty(
+        name="Show Focal Length",
+        description="Display focal length or ortho scale",
+        default=True,
+        update=lambda self, context: _redraw_viewports(context)
+    )
+    
+    camera_info_show_focus: BoolProperty(
+        name="Show Focus Distance",
+        description="Display focus distance when DoF is enabled",
+        default=True,
+        update=lambda self, context: _redraw_viewports(context)
+    )
+    
+    camera_info_show_fstop: BoolProperty(
+        name="Show F-Stop",
+        description="Display F-Stop when DoF is enabled",
+        default=True,
+        update=lambda self, context: _redraw_viewports(context)
+    )
+    
+    camera_info_background_color: bpy.props.FloatVectorProperty(
+        name="Background Color",
+        description="Color and opacity of the background",
+        subtype='COLOR',
+        size=4,
+        min=0.0,
+        max=1.0,
+        default=(0.0, 0.0, 0.0, 0.6),
+        update=lambda self, context: _redraw_viewports(context)
+    )
+    
+    camera_info_font_color: bpy.props.FloatVectorProperty(
+        name="Font Color",
+        description="Color and opacity of the text",
+        subtype='COLOR',
+        size=4,
+        min=0.0,
+        max=1.0,
+        default=(1.0, 1.0, 1.0, 1.0),
+        update=lambda self, context: _redraw_viewports(context)
+    )
+
     def draw(self, context):
         layout = self.layout
-        addon_prefs = context.preferences.addons[__name__].preferences
-        
+
+        box = layout.box()
+        box.label(text="N-panel Settings:")
+        box.prop(self, "show_render_tools_n_panel")
+        box.prop(self, "show_quick_camera_n_panel")
+        box.prop(self, "show_shot_list_n_panel")
+        box.prop(self, "show_camera_list_n_panel")
+
         box = layout.box()
         row = box.row()
-        row.label(text="Quick Camera")
+        row.label(text="Viewport Settings:")
+        row = box.row()
+        row.prop(self, "show_camera_info_overlay")
+        
+        # Camera info overlay settings (only show if enabled)
+        if self.show_camera_info_overlay:
+            sub_box = box.box()
+            sub_box.label(text="Camera Info Overlay Settings:", icon='PREFERENCES')
+            
+            # Layout options
+            col = sub_box.column(align=True)
+            col.label(text="Layout:")
+            col.prop(self, "camera_info_single_line")
+            if self.camera_info_single_line:
+                col.prop(self, "camera_info_separator", text="Separator")
+            
+            # Position and appearance
+            col = sub_box.column(align=True)
+            col.label(text="Position & Appearance:")
+            row = col.row(align=True)
+            row.prop(self, "camera_info_position_x")
+            row.prop(self, "camera_info_position_y")
+            col.prop(self, "camera_info_font_size")
+            col.prop(self, "camera_info_font_color", text="Font Color")
+            col.prop(self, "camera_info_background_color", text="Background")
+            
+            # Info display options
+            col = sub_box.column(align=True)
+            col.label(text="Display Options:")
+            col.prop(self, "camera_info_show_name")
+            col.prop(self, "camera_info_show_frames")
+            col.prop(self, "camera_info_show_focal")
+            col.prop(self, "camera_info_show_focus")
+            col.prop(self, "camera_info_show_fstop")
+
+        box = layout.box()
+        row = box.row()
+        row.label(text="Render Tools Settings:")
         row = box.row()
         row.prop(self, "show_viewport_button")
-        row = box.row()  
-        row.label(text="Pie Menu Keybind:")
-        
-        if addon_prefs.capture_key:
-            row.operator("wm.capture_keymap", text="Press a Key", icon="KEYINGSET")
-        else:
-            if addon_prefs.key == '':
-                key_combination = "(None)"
-            else:
-                key_combination = (addon_prefs.ctrl and "Ctrl+" or "") + \
-                                  (addon_prefs.alt and "Alt+" or "") + \
-                                  (addon_prefs.shift and "Shift+" or "") + \
-                                  addon_prefs.key
-            row.operator("wm.capture_keymap", text=key_combination, icon="KEYINGSET")
-        
-        row.operator("wm.remove_keymap", text="", icon="X")
-        
         row = box.row()
-        row.prop(self, "ctrl")
-        row.prop(self, "alt")
-        row.prop(self, "shift")
-        
+        row.prop(self, "show_pin_button")
+        row = box.row()  
+
         box = layout.box()
         row = box.row()
-        row.label(text="This code was written with the help of ChatGPT, if you know how to improve it please let me know!")
+        row.label(text="Camera Tools Settings:")
+        
+        # Quick Camera Pie Menu keybind
+        row = box.row()
+        row.label(text="Quick Camera Pie Menu Keybind:")
+        if self.capture_key:
+            row.operator("wm.capture_keymap", text="Press a Key", icon="KEYINGSET").pie_menu = "quick_camera"
+        else:
+            key_combination = f"{'Ctrl+' if self.quick_camera_ctrl else ''}{'Alt+' if self.quick_camera_alt else ''}{'Shift+' if self.quick_camera_shift else ''}{self.quick_camera_key or '(None)'}"
+            row.operator("wm.capture_keymap", text=key_combination, icon="KEYINGSET").pie_menu = "quick_camera"
+        row.operator("wm.remove_keymap", text="", icon="X").pie_menu = "quick_camera"
+        row = box.row()
+        row.prop(self, "quick_camera_ctrl")
+        row.prop(self, "quick_camera_alt")
+        row.prop(self, "quick_camera_shift")
+        
+        # Camera Controls Pie Menu keybind
+        row = box.row()
+        row.label(text="Camera Controls Pie Menu Keybind:")
+        if self.capture_key:
+            row.operator("wm.capture_keymap", text="Press a Key", icon="KEYINGSET").pie_menu = "camera_controls"
+        else:
+            key_combination = f"{'Ctrl+' if self.camera_controls_ctrl else ''}{'Alt+' if self.camera_controls_alt else ''}{'Shift+' if self.camera_controls_shift else ''}{self.camera_controls_key or '(None)'}"
+            row.operator("wm.capture_keymap", text=key_combination, icon="KEYINGSET").pie_menu = "camera_controls"
+        row.operator("wm.remove_keymap", text="", icon="X").pie_menu = "camera_controls"
+        row = box.row()
+        row.prop(self, "camera_controls_ctrl")
+        row.prop(self, "camera_controls_alt")
+        row.prop(self, "camera_controls_shift")
+
+        # Favorite Camera keybind
+        row = box.row()
+        row.label(text="Favorite Camera Pie Menu Keybind:")
+        if self.capture_key:
+            row.operator("wm.capture_keymap", text="Press a Key", icon="KEYINGSET").pie_menu = "favorite_camera"
+        else:
+            key_combination = f"{'Ctrl+' if self.favorite_camera_ctrl else ''}{'Alt+' if self.favorite_camera_alt else ''}{'Shift+' if self.favorite_camera_shift else ''}{self.favorite_camera_key or '(None)'}"
+            row.operator("wm.capture_keymap", text=key_combination, icon="KEYINGSET").pie_menu = "favorite_camera"
+        row.operator("wm.remove_keymap", text="", icon="X").pie_menu = "favorite_camera"
+        row = box.row()
+        row.prop(self, "favorite_camera_ctrl")
+        row.prop(self, "favorite_camera_alt")
+        row.prop(self, "favorite_camera_shift")
+
+        box = layout.box()
+        row = box.row()
+        row.label(text="This code was written with the help of Claude.AI, if you know how to improve it please let me know!")
         row = box.row()
         row.operator("wm.url_open", text="Visit GitHub", icon="URL").url = "https://github.com/Kyokaz/Kyokaz-s-Toolbox"
 
 def draw_viewport_header(self, context):
-    preferences = context.preferences.addons[__name__].preferences
-    if preferences.show_viewport_button:
-        self.layout.operator("object.viewport_render_confirm", text="Viewport Render", icon='RENDER_STILL')
+    """Draw viewport render buttons in the 3D View header."""
+    try:
+        preferences = context.preferences.addons[__package__].preferences
+        layout = self.layout
+        if preferences.show_viewport_button:
+            layout = layout.row(align=True)
+            layout.operator("object.viewport_render_confirm", text="Viewport", icon='RENDER_STILL')
+            layout.operator("object.viewport_render_settings", text="", icon='PREFERENCES')
+            layout.operator("object.snapshot_render", text="Snapshot", icon='RENDER_RESULT')
+            layout.operator("object.snapshot_render_settings", text="", icon='PREFERENCES')
+    except (KeyError, AttributeError):
+        # Silently fail if preferences not available
+        pass
 
-global_addon_keymaps = []
+def draw_local_camera_button(self, context):
+    """Draw local camera pin button in the 3D View header."""
+    try:
+        preferences = context.preferences.addons[__package__].preferences
+        if preferences.show_pin_button:
+            if hasattr(context, 'space_data') and hasattr(context.space_data, 'use_local_camera'):
+                icon = 'PINNED' if context.space_data.use_local_camera else 'UNPINNED'
+                self.layout.operator("object.toggle_local_camera", text="", icon=icon)
+    except (KeyError, AttributeError):
+        # Silently fail if preferences not available
+        pass
+
+def draw_set_frame_buttons(self, context):
+    layout = self.layout
+    row = layout.row(align=True)
+    row.operator("scene.set_frame", text="Start", icon='TRIA_LEFT_BAR').frame_type = 'START'
+    row.operator("scene.set_frame", text="End", icon='TRIA_RIGHT_BAR').frame_type = 'END'
 
 def register_keymap():
-    addon_prefs = get_addon_preferences()
-    if addon_prefs is None:
-        print("Addon preferences not found.")
-        return
+    """Register keymap items for pie menus with error handling."""
+    try:
+        wm = bpy.context.window_manager
+        if not wm or not wm.keyconfigs or not wm.keyconfigs.addon:
+            print("Warning: Cannot register keymaps - window manager not available")
+            return
 
-    key = addon_prefs.key
-    if key == '':
-        return
+        addon_prefs = bpy.context.preferences.addons[__package__].preferences
 
-    ctrl = addon_prefs.ctrl
-    alt = addon_prefs.alt
-    shift = addon_prefs.shift
+        km = wm.keyconfigs.addon.keymaps.new(name='3D View', space_type='VIEW_3D')
 
-    window_manager = bpy.context.window_manager
-    if window_manager.keyconfigs.addon:
-        keymap = window_manager.keyconfigs.addon.keymaps.new(name='3D View', space_type='VIEW_3D')
-        keymap_item = keymap.keymap_items.new('wm.call_menu_pie', key, "PRESS", ctrl=ctrl, alt=alt, shift=shift)
-        keymap_item.properties.name = "VIEW3D_MT_PIE_QuickCamera"
-        global_addon_keymaps.append((keymap, keymap_item))
+        # Quick Camera Pie Menu
+        if addon_prefs.quick_camera_key:
+            try:
+                kmi = km.keymap_items.new('wm.call_menu_pie', addon_prefs.quick_camera_key, "PRESS",
+                                          ctrl=addon_prefs.quick_camera_ctrl,
+                                          alt=addon_prefs.quick_camera_alt,
+                                          shift=addon_prefs.quick_camera_shift)
+                kmi.properties.name = "VIEW3D_MT_PIE_QuickCamera"
+                addon_keymaps.append((km, kmi))
+            except Exception as e:
+                print(f"Warning: Failed to register Quick Camera keymap: {e}")
+
+        # Camera Controls Pie Menu
+        if addon_prefs.camera_controls_key:
+            try:
+                kmi = km.keymap_items.new('wm.call_menu_pie', addon_prefs.camera_controls_key, "PRESS",
+                                          ctrl=addon_prefs.camera_controls_ctrl,
+                                          alt=addon_prefs.camera_controls_alt,
+                                          shift=addon_prefs.camera_controls_shift)
+                kmi.properties.name = "VIEW3D_MT_PIE_camera_controls"
+                addon_keymaps.append((km, kmi))
+            except Exception as e:
+                print(f"Warning: Failed to register Camera Controls keymap: {e}")
+
+        # Favorite Camera Pie Menu
+        if addon_prefs.favorite_camera_key:
+            try:
+                kmi = km.keymap_items.new('wm.call_menu_pie', addon_prefs.favorite_camera_key, "PRESS",
+                                          ctrl=addon_prefs.favorite_camera_ctrl,
+                                          alt=addon_prefs.favorite_camera_alt,
+                                          shift=addon_prefs.favorite_camera_shift)
+                kmi.properties.name = "VIEW3D_MT_PIE_favorite_camera"
+                addon_keymaps.append((km, kmi))
+            except Exception as e:
+                print(f"Warning: Failed to register Favorite Camera keymap: {e}")
+    except (KeyError, AttributeError) as e:
+        print(f"Warning: Cannot register keymaps - addon preferences not available: {e}")
+
+def unregister_keymap():
+    for km, kmi in addon_keymaps:
+        km.keymap_items.remove(kmi)
+    addon_keymaps.clear()
 
 def update_keymap(self, context):
     unregister_keymap()
     register_keymap()
 
-def unregister_keymap():
-    window_manager = bpy.context.window_manager
-    if window_manager and window_manager.keyconfigs and window_manager.keyconfigs.addon:
-        for keymap, keymap_item in global_addon_keymaps:
-            keymap.keymap_items.remove(keymap_item)
-    global_addon_keymaps.clear()
-
-def get_addon_preferences():
-    return bpy.context.preferences.addons[__package__].preferences
-
 classes = (
-    OBJECT_OT_toggle_default_interpolation,
-    OBJECT_OT_bake_keyframes_per_steps,
-    OBJECT_OT_add_keyframes_operator,
-    OBJECT_OT_delete_keyframes_per_steps,
-    OBJECT_OT_toggle_interpolation_selected,
-    OBJECT_OT_toggle_interpolation_all,
-    OBJECT_OT_apply_all_constant,
-    OBJECT_OT_apply_all_bezier,
-    OBJECT_OT_apply_all_linear,
-    OBJECT_OT_apply_selected_constant,
-    OBJECT_OT_apply_selected_bezier,
-    OBJECT_OT_apply_selected_linear,
-    OBJECT_OT_toggle_auto_keying,
-    OBJECT_PT_toggle_interpolation_panel,
-    OBJECT_PT_SelectHiddenDisableRenderPanel,
-    OBJECT_PT_CameraTools,
-    OBJECT_PT_CameraTools_Status,
-    OBJECT_OT_ViewportRenderConfirm,
-    SCENE_OT_JumpToMarker,
-    SCENE_OT_RemoveMarkerAndCamera,
-    SCENE_OT_RemoveAllShotCameras,
-    SCENE_OT_SelectCamera,
-    SCENE_OT_SetPreviewRange,
-    OBJECT_OT_OpenOutputDirectory,
-    VIEW3D_MT_PIE_QuickCamera,
-    SelectHiddenDisableRenderOperator,
-    CreateExcludeHiddenCollectionOperator,
-    CustomNameProperties,
-    AddCameraButton,
-    AddCameraWithMarkerButton,
-    AddCameraCopyPropertiesButton,
-    AddCameraShotCopyPropertiesButton,
-    ShowPopupMessageOperator,
-    WM_OT_capture_keymap,
-    WM_OT_remove_keymap,
-    MyAddonPreferences
+    MyAddonPreferences,
+    *operators.classes,
+    *panels.classes,
 )
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    bpy.types.Scene.custom_name_props = bpy.props.PointerProperty(type=CustomNameProperties)
+    bpy.types.Scene.custom_name_props = bpy.props.PointerProperty(type=operators.CustomNameProperties)
     bpy.types.VIEW3D_HT_header.append(draw_viewport_header)
+    bpy.types.VIEW3D_HT_header.append(draw_local_camera_button)
+    bpy.types.TIME_MT_editor_menus.append(draw_set_frame_buttons)
+    bpy.types.Scene.camera_index = bpy.props.IntProperty()
+    bpy.types.Scene.active_marker_index = bpy.props.IntProperty()
+    bpy.types.Scene.snapshot_settings = bpy.props.PointerProperty(type=panels.SnapshotSettings)
+    bpy.types.Scene.render_tools_settings = bpy.props.PointerProperty(type=operators.RenderToolsSettings)
+    bpy.types.Scene.viewport_render_settings = bpy.props.PointerProperty(type=panels.ViewportRenderSettings)
+    bpy.types.Scene.favorite_cameras = bpy.props.CollectionProperty(type=bpy.types.PropertyGroup)
+    bpy.types.Scene.render_presets = PointerProperty(type=operators.RenderPresetsCollection)
+    bpy.types.Scene.collection_index = bpy.props.IntProperty(
+        name="Selected Collection Index",
+        update=operators.update_collection_index  
+    )
+    bpy.types.Scene.camera_notes = bpy.props.CollectionProperty(type=operators.CameraNoteItem)
+    bpy.types.Scene.active_note_index = bpy.props.IntProperty(name="Active Note Index", default=0)
+    
+    # Panel-specific scene properties
+    bpy.types.Scene.shot_list_color = bpy.props.FloatVectorProperty(
+        name="Shot List Color",
+        subtype='COLOR',
+        default=(0.2, 0.6, 1.0, 1.0),
+        size=4,
+        min=0.0,
+        max=1.0
+    )
+    bpy.types.Scene.camera_list_color = bpy.props.FloatVectorProperty(
+        name="Camera List Color",
+        subtype='COLOR',
+        default=(1.0, 0.6, 0.2, 1.0),
+        size=4,
+        min=0.0,
+        max=1.0
+    )
+    bpy.types.Scene.show_camera_details = bpy.props.BoolProperty(
+        name="Show Camera Details",
+        default=True
+    )
+    
     register_keymap()
+    
+    # Register camera info overlay if enabled
+    try:
+        preferences = bpy.context.preferences.addons[__package__].preferences
+        if preferences.show_camera_info_overlay:
+            operators.register_camera_info_overlay()
+        if preferences.show_camera_notes:
+            operators.register_camera_notes_overlay()
+    except (KeyError, AttributeError):
+        # Default to enabled if preferences not available
+        operators.register_camera_info_overlay()
+        operators.register_camera_notes_overlay()
 
 def unregister():
     unregister_keymap()
+    
+    # Unregister camera overlays
+    operators.unregister_camera_info_overlay()
+    operators.unregister_camera_notes_overlay()
 
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
     bpy.types.VIEW3D_HT_header.remove(draw_viewport_header)
+    bpy.types.VIEW3D_HT_header.remove(draw_local_camera_button)
+    bpy.types.TIME_MT_editor_menus.remove(draw_set_frame_buttons)
+    del bpy.types.Scene.render_presets
+    del bpy.types.Scene.active_marker_index
+    del bpy.types.Scene.camera_index
     del bpy.types.Scene.custom_name_props
+    del bpy.types.Scene.render_tools_settings
+    del bpy.types.Scene.viewport_render_settings
+    del bpy.types.Scene.snapshot_settings
+    del bpy.types.Scene.collection_index
+    del bpy.types.Scene.favorite_cameras
+    del bpy.types.Scene.camera_notes
+    del bpy.types.Scene.active_note_index
+    del bpy.types.Scene.shot_list_color
+    del bpy.types.Scene.camera_list_color
+    del bpy.types.Scene.show_camera_details
 
-if __name__ == "__main__":
+if __package__ == "__main__":
     register()
+
+
