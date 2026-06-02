@@ -693,8 +693,9 @@ class OBJECT_OT_delete_keyframes_per_steps(OBJECT_OT_BaseOperator):
 
         for fc in fcurves:
             keyframes = [kp for kp in fc.keyframe_points if kp.select_control_point]
-            for i in range(len(keyframes) - 1, -1, -self.steps):
-                fc.keyframe_points.remove(keyframes[i])
+            to_remove = [keyframes[i] for i in range(0, len(keyframes), self.steps)]
+            for kp in reversed(to_remove):
+                fc.keyframe_points.remove(kp)
 
         self.report({'INFO'}, f"Keyframes deleted successfully with step size {self.steps}")
         return {'FINISHED'}
@@ -803,39 +804,6 @@ class RenderToolsSettings(PropertyGroup):
         description="Objects in this collection will not be affected by the disable render operation"
     )
 
-class OBJECT_OT_ApplyRenderToolsSettings(Operator):
-    bl_idname = "object.apply_render_tools_settings"
-    bl_label = "Apply Render Tools Settings"
-    bl_description = "Apply the current Render Tools settings to hidden objects"
-
-    def execute(self, context):
-        settings = context.scene.render_tools_settings
-        hidden_objects = [obj for obj in bpy.data.objects if obj.hide_get()]
-        affected_count = 0
-
-        for obj in hidden_objects:
-            self.process_object(obj, settings)
-            affected_count += 1
-
-            if settings.affect_children:
-                for child in obj.children_recursive:
-                    self.process_object(child, settings)
-                    affected_count += 1
-
-        self.report({'INFO'}, f"Applied settings to {affected_count} objects")
-        return {'FINISHED'}
-
-    def process_object(self, obj, settings):
-        if settings.action == 'DISABLE':
-            obj.hide_render = True
-        elif settings.action == 'COLLECTION':
-            collection = bpy.data.collections.get(settings.collection_name)
-            if not collection:
-                collection = bpy.data.collections.new(settings.collection_name)
-                bpy.context.scene.collection.children.link(collection)
-            if obj.name not in collection.objects:
-                collection.objects.link(obj)
-
 class SelectHiddenDisableRenderOperator(Operator):
     bl_idname = "object.select_hidden_disable_render"
     bl_label = "Disable Renders for Hidden Objects"
@@ -847,12 +815,9 @@ class SelectHiddenDisableRenderOperator(Operator):
         
         for obj in selected_objects:
             obj.hide_render = True
-            obj.select_set(True)
 
-        # Deselect all objects first
         bpy.ops.object.select_all(action='DESELECT')
-        
-        # Then select the hidden objects
+
         for obj in selected_objects:
             obj.select_set(True)
 
@@ -1425,27 +1390,27 @@ class OBJECT_OT_PlayblastConfirm(OBJECT_OT_BaseOperator):
             # Apply stamp options
             for prop in dir(settings):
                 if prop.startswith('use_stamp_'):
-                    stamp_prop = prop.replace('use_stamp_', 'use_stamp_')
-                    if hasattr(scene.render, stamp_prop):
-                        setattr(scene.render, stamp_prop, getattr(settings, prop))
+                    if hasattr(scene.render, prop):
+                        setattr(scene.render, prop, getattr(settings, prop))
 
         # Generate filename
         playblast_filepath = generate_output_filename(output_dir, settings.filename_suffix)
         scene.render.filepath = playblast_filepath
 
-        # Perform the playblast (viewport render)
-        bpy.ops.render.opengl(animation=True, write_still=True, view_context=True)
+        try:
+            # Perform the playblast (viewport render)
+            bpy.ops.render.opengl(animation=True, write_still=True, view_context=True)
 
-        # Optionally preview the render (before restoring settings)
-        if settings.preview_render:
-            bpy.ops.render.play_rendered_anim()
-
-        # Restore original settings
-        scene.render.filepath = original_filepath
-        scene.render.use_stamp = original_use_stamp
-        for prop, value in original_stamp_settings.items():
-            if hasattr(scene.render, prop):
-                setattr(scene.render, prop, value)
+            # Optionally preview the render (before restoring settings)
+            if settings.preview_render:
+                bpy.ops.render.play_rendered_anim()
+        finally:
+            # Always restore original settings
+            scene.render.filepath = original_filepath
+            scene.render.use_stamp = original_use_stamp
+            for prop, value in original_stamp_settings.items():
+                if hasattr(scene.render, prop):
+                    setattr(scene.render, prop, value)
 
         self.report({'INFO'}, f"Playblast saved to: {playblast_filepath}")
         return {'FINISHED'}
@@ -1551,7 +1516,7 @@ class OBJECT_OT_SnapshotRender(OBJECT_OT_BaseOperator):
         if settings.preview_render:
             try:
                 bpy.ops.render.view_show('INVOKE_DEFAULT')
-            except:
+            except Exception:
                 pass  # Preview may fail if no image editor available
 
         self.report({'INFO'}, f"Snapshot saved to: {file_path}")
@@ -1674,21 +1639,21 @@ class SCENE_OT_CleanUpMarkers(OBJECT_OT_BaseOperator):
 
     def execute(self, context):
         scene = context.scene
-        selected_collection = bpy.data.collections[scene.collection_index] if scene.collection_index < len(bpy.data.collections) else None
-        
+        selected_collection = scene.custom_name_props.get_shot_list_collection(context)
+
         if selected_collection:
-            invalid_markers = [marker for marker in scene.timeline_markers 
-                               if not marker.camera or 
-                               marker.camera.name not in selected_collection.objects or 
+            invalid_markers = [marker for marker in scene.timeline_markers
+                               if not marker.camera or
+                               marker.camera.name not in selected_collection.objects or
                                not bpy.data.objects.get(marker.camera.name)]
-            
+
             for marker in invalid_markers:
                 scene.timeline_markers.remove(marker)
-            
+
             self.report({'INFO'}, f"Removed {len(invalid_markers)} invalid markers")
         else:
             self.report({'WARNING'}, "No collection selected")
-        
+
         return {'FINISHED'}
 
 class SCENE_OT_RemoveAllShotCameras(OBJECT_OT_BaseOperator):
@@ -1700,8 +1665,8 @@ class SCENE_OT_RemoveAllShotCameras(OBJECT_OT_BaseOperator):
 
     def execute(self, context):
         scene = context.scene
-        selected_collection = bpy.data.collections[scene.collection_index] if scene.collection_index < len(bpy.data.collections) else None
-        
+        selected_collection = scene.custom_name_props.get_shot_list_collection(context)
+
         if selected_collection:
             markers_to_remove = [marker for marker in scene.timeline_markers if marker.camera and marker.camera.name in selected_collection.objects]
 
@@ -1722,8 +1687,8 @@ class SCENE_OT_RemoveAllCameras(OBJECT_OT_BaseOperator):
 
     def execute(self, context):
         scene = context.scene
-        selected_collection = bpy.data.collections[scene.collection_index] if scene.collection_index < len(bpy.data.collections) else None
-        
+        selected_collection = scene.custom_name_props.get_camera_list_collection(context)
+
         if selected_collection:
             cameras_to_remove = [obj for obj in selected_collection.objects if obj.type == 'CAMERA']
 
@@ -2284,9 +2249,6 @@ class OBJECT_OT_delete_camera(OBJECT_OT_BaseOperator):
         else:
             self.report({'ERROR'}, f"Camera '{self.camera_name}' not found.")
             return {'CANCELLED'}
-
-def update_collection_index(self, context):
-    context.area.tag_redraw()
 
 class SCENE_OT_set_and_view_camera(Operator):
     bl_idname = "scene.set_and_view_camera"
@@ -2916,7 +2878,6 @@ class VIEW3D_MT_PIE_camera_controls(Menu):
         pie.operator("object.create_empty_focus", text="Create Empty Focus", icon='EMPTY_AXIS')
         pie.operator("object.toggle_lock_camera_to_view", text="Lock Camera to View", icon='LOCKVIEW_ON')
         pie.operator("object.select_active_camera", text="Select Active Camera", icon='OUTLINER_OB_CAMERA')
-        pie.operator("object.favorite_active_camera", text="Favorite Active Camera", icon='SOLO_ON')
 
         props = context.scene.custom_name_props
         favorite_cameras = [fc.camera for fc in props.favorite_cameras if fc.camera]
@@ -2993,9 +2954,10 @@ class OBJECT_OT_ExportAllSettings(Operator):
             with open(self.filepath, "w") as file:
                 json.dump(settings, file, indent=4)
             self.report({"INFO"}, f"Settings exported to {self.filepath}")
+            return {"FINISHED"}
         except Exception as e:
             self.report({"ERROR"}, f"Failed to export settings: {e}")
-        return {"FINISHED"}
+            return {"CANCELLED"}
 
     def invoke(self, context, event):
         if not self.filepath:
@@ -3045,9 +3007,10 @@ class OBJECT_OT_ImportAllSettings(Operator):
                 context.scene.render_presets.active_preset_index = len(presets) - 1
 
             self.report({"INFO"}, f"Settings imported as preset: {preset_name}")
+            return {"FINISHED"}
         except Exception as e:
             self.report({"ERROR"}, f"Failed to import settings: {e}")
-        return {"FINISHED"}
+            return {"CANCELLED"}
 
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
@@ -3447,7 +3410,6 @@ classes = (
     OBJECT_OT_bake_keyframes_per_steps,
     SCENE_OT_set_frame,
     RenderToolsSettings,
-    OBJECT_OT_ApplyRenderToolsSettings,
     SelectHiddenDisableRenderOperator,
     OBJECT_OT_DisableRenderForHidden,
     OBJECT_OT_CreateExceptionCollection,

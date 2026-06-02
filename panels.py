@@ -355,9 +355,6 @@ class OBJECT_PT_CameraInfoOverlay(Panel):
         try:
             preferences = context.preferences.addons[__package__].preferences
             
-            # Enable/disable layout based on overlay state
-            layout.enabled = preferences.show_camera_info_overlay
-            
             # Layout options
             box = layout.box()
             box.label(text="Layout:", icon='ALIGN_JUSTIFY')

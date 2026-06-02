@@ -263,13 +263,16 @@ class MyAddonPreferences(AddonPreferences):
         box.prop(self, "show_quick_camera_n_panel")
         box.prop(self, "show_shot_list_n_panel")
         box.prop(self, "show_camera_list_n_panel")
+        box.prop(self, "show_camera_info_overlay_n_panel")
 
         box = layout.box()
         row = box.row()
         row.label(text="Viewport Settings:")
         row = box.row()
         row.prop(self, "show_camera_info_overlay")
-        
+        row = box.row()
+        row.prop(self, "show_camera_notes")
+
         # Camera info overlay settings (only show if enabled)
         if self.show_camera_info_overlay:
             sub_box = box.box()
@@ -308,7 +311,6 @@ class MyAddonPreferences(AddonPreferences):
         row.prop(self, "show_viewport_button")
         row = box.row()
         row.prop(self, "show_pin_button")
-        row = box.row()  
 
         box = layout.box()
         row = box.row()
@@ -559,6 +561,6 @@ def unregister():
     del bpy.types.Scene.camera_list_color
     del bpy.types.Scene.show_camera_details
 
-if __package__ == "__main__":
+if __name__ == "__main__":
     register()
 
