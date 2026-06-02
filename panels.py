@@ -11,7 +11,7 @@ class OBJECT_PT_BasePanel(Panel):
 
     @classmethod
     def poll(cls, context):
-        return context.area.type in {'GRAPH_EDITOR', 'DOPESHEET_EDITOR', 'TIMELINE', 'ACTION_EDITOR', 'FCURVES'}
+        return context.area.type in {'GRAPH_EDITOR', 'DOPESHEET_EDITOR', 'TIMELINE', 'ACTION_EDITOR', 'FCURVES', 'NLA_EDITOR'}
 
 class OBJECT_UL_CollectionList(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
@@ -33,6 +33,13 @@ class OBJECT_PT_toggle_interpolation_panel(OBJECT_PT_BasePanel):
         layout.operator("object.toggle_auto_keying", 
                         text="Auto Keying: " + ("On" if context.scene.tool_settings.use_keyframe_insert_auto else "Off"), 
                         icon='AUTO')
+        layout.separator()
+        
+        # Start/End Frame buttons
+        layout.label(text="Set Frame Range:")
+        row = layout.row(align=True)
+        row.operator("scene.set_frame", text="Start", icon='TRIA_LEFT_BAR').frame_type = 'START'
+        row.operator("scene.set_frame", text="End", icon='TRIA_RIGHT_BAR').frame_type = 'END'
         layout.separator()
 
 class OBJECT_PT_interpolation_tools_panel(OBJECT_PT_BasePanel):
@@ -88,6 +95,7 @@ class OBJECT_PT_RenderToolsPanel(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = 'Toolbox'
     bl_options = {'DEFAULT_CLOSED'}
+    bl_order = 3
 
     @classmethod
     def poll(cls, context):
@@ -126,10 +134,10 @@ class OBJECT_PT_RenderToolsPanel(bpy.types.Panel):
 
         # Viewport Render
         box = layout.box()
-        box.label(text="Viewport Render:", icon="RENDER_STILL")
+        box.label(text="Playblast:", icon="RENDER_ANIMATION")
         row = box.row(align=True)
-        row.operator("object.viewport_render_confirm", text="Viewport Render", icon='RENDER_STILL')
-        row.operator("object.viewport_render_settings", text="", icon='PREFERENCES')
+        row.operator("object.playblast_confirm", text="Playblast", icon='RENDER_ANIMATION')
+        row.operator("object.playblast_settings", text="", icon='PREFERENCES')
         
         row = box.row(align=True)
         row.operator("object.snapshot_render", text="Snapshot", icon='RENDER_RESULT')
@@ -145,6 +153,7 @@ class OBJECT_PT_CameraTools(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Toolbox'
+    bl_order = 0
 
     @classmethod
     def poll(cls, context):
@@ -163,21 +172,78 @@ class OBJECT_PT_CameraTools(Panel):
         scene = context.scene
         props = scene.custom_name_props
 
+        # Panel Visibility Toggle
+        try:
+            preferences = context.preferences.addons[__package__].preferences
+            
+            split = layout.split(factor=0.25, align=True)
+            
+            # Camera List
+            col = split.column(align=True)
+            col.scale_y = 1.5
+            op = col.operator("object.toggle_panel_visibility", 
+                             text="", 
+                             icon='RESTRICT_RENDER_OFF',
+                             depress=preferences.show_camera_list_n_panel,
+                             emboss=True)
+            op.panel_name = "camera_list"
+            
+            # Shot List
+            col = split.column(align=True)
+            col.scale_y = 1.5
+            op = col.operator("object.toggle_panel_visibility", 
+                             text="", 
+                             icon='VIEW_CAMERA' if preferences.show_shot_list_n_panel else 'VIEW_CAMERA',
+                             depress=preferences.show_shot_list_n_panel,
+                             emboss=True)
+            op.panel_name = "shot_list"
+            
+            # Render Tools
+            col = split.column(align=True)
+            col.scale_y = 1.5
+            op = col.operator("object.toggle_panel_visibility", 
+                             text="", 
+                             icon='SCENE' if preferences.show_render_tools_n_panel else 'SCENE',
+                             depress=preferences.show_render_tools_n_panel,
+                             emboss=True)
+            op.panel_name = "render_tools"
+            
+            # Camera Info Overlay
+            col = split.column(align=True)
+            col.scale_y = 1.5
+            op = col.operator("object.toggle_panel_visibility", 
+                             text="", 
+                             icon='TEXT',
+                             depress=preferences.show_camera_info_overlay_n_panel,
+                             emboss=True)
+            op.panel_name = "camera_info_overlay"
+            
+        except (KeyError, AttributeError):
+            pass
+
+class OBJECT_PT_AddCamera(Panel):
+    bl_label = "Add Camera"
+    bl_parent_id = "OBJECT_PT_CameraTools"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Toolbox'
+
+    def draw(self, context):
+        layout = self.layout
+        props = context.scene.custom_name_props
+        
         # Camera Collection Selection
         box = layout.box()
         box.label(text="Camera Collection:", icon="OUTLINER_COLLECTION")
         row = box.row(align=True)
         row.prop(props, "camera_collection", text="")
-
-        # New Collection Creation
         row = box.row(align=True)
         row.prop(props, "collection_name", text="")
         row.operator("object.create_camera_collection", text="", icon="PLUS")
-
+        
         # Camera Creation
         box = layout.box()
-        box.label(text="Add New Camera:", icon="ADD")
-        
+        box.label(text="Create Camera:", icon="ADD")
         row = box.row()
         row.prop(props, "camera_name")
         row.operator("object.add_camera", text="", icon="ADD")
@@ -213,9 +279,10 @@ class OBJECT_PT_DefaultCameraSettings(Panel):
         else:
             row.prop(props, "default_lens")
         
-        row = layout.row()
+        row = layout.row(align=True)
         row.prop(props, "default_clip_start")
         row.prop(props, "default_clip_end")
+        row.operator("object.apply_clipping_to_all_cameras", text="", icon='CHECKMARK')
 
 class OBJECT_PT_ActiveCameraSettings(Panel):
     bl_label = "Active Camera Settings"
@@ -258,19 +325,26 @@ class OBJECT_PT_ActiveCameraSettings(Panel):
 
 class OBJECT_PT_CameraInfoOverlay(Panel):
     bl_label = "Camera Info Overlay"
-    bl_parent_id = "OBJECT_PT_CameraTools"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Toolbox'
     bl_options = {'DEFAULT_CLOSED'}
+    bl_order = 4
+
+    @classmethod
+    def poll(cls, context):
+        try:
+            preferences = context.preferences.addons[__package__].preferences
+            return preferences.show_camera_info_overlay_n_panel
+        except (KeyError, AttributeError):
+            return True  # Default to showing if preferences not found
 
     def draw_header(self, context):
         layout = self.layout
         try:
             preferences = context.preferences.addons[__package__].preferences
             row = layout.row(align=True)
-            row.prop(preferences, "show_camera_info_overlay", text="")
-            row.label(text="", icon='CAMERA_DATA')
+            row.prop(preferences, "show_camera_info_overlay", text="", icon='CAMERA_DATA')
             row.prop(preferences, "show_camera_notes", text="", icon='TEXT')
         except (KeyError, AttributeError):
             pass
@@ -353,7 +427,7 @@ class OBJECT_UL_ShotList(UIList):
             # Calculate end frame safely
             marker_index = scene.timeline_markers.find(item.name)
             if marker_index >= 0 and marker_index < len(scene.timeline_markers) - 1:
-                end_frame = scene.timeline_markers[marker_index + 1].frame
+                end_frame = scene.timeline_markers[marker_index + 1].frame - 1
             else:
                 end_frame = scene.frame_end
 
@@ -361,7 +435,7 @@ class OBJECT_UL_ShotList(UIList):
             op_preview.toggle = not is_preview_range
 
             # Frame range and duration
-            shot_frames = end_frame - item.frame
+            shot_frames = end_frame - item.frame + 1
             
             frame_row = row.row()
             frame_row.label(text=f"{item.frame} - {end_frame} ({shot_frames} frames)")
@@ -402,6 +476,7 @@ class OBJECT_PT_ShotList(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Toolbox'
+    bl_order = 2
 
     @classmethod
     def poll(cls, context):
@@ -437,10 +512,10 @@ class OBJECT_PT_ShotList(Panel):
                 # Calculate total frames safely
                 if len(valid_markers) > 1:
                     total_frames = sum(valid_markers[i+1].frame - valid_markers[i].frame for i in range(len(valid_markers)-1))
-                    total_frames += scene.frame_end - valid_markers[-1].frame
+                    total_frames += scene.frame_end - valid_markers[-1].frame + 1
                 else:
                     # Only one marker
-                    total_frames = scene.frame_end - valid_markers[0].frame
+                    total_frames = scene.frame_end - valid_markers[0].frame + 1
                 layout.label(text=f"Total Shot Duration: {total_frames} frames")
             else:
                 layout.label(text="No shots in the selected collection")
@@ -533,6 +608,7 @@ class OBJECT_PT_CameraList(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Toolbox'
+    bl_order = 1
 
     @classmethod
     def poll(cls, context):
@@ -543,7 +619,7 @@ class OBJECT_PT_CameraList(Panel):
             return True  # Default to showing if preferences not found
 
     def draw_header(self, context):
-        self.layout.label(icon='OUTLINER_OB_CAMERA')
+        self.layout.label(icon='RESTRICT_RENDER_OFF')
 
     def draw(self, context):
         layout = self.layout
@@ -737,7 +813,7 @@ class OBJECT_PT_ShotNotes(OBJECT_PT_Notes):
 class ViewportRenderSettings(PropertyGroup):
     output_directory: StringProperty(
         name="Output Directory",
-        description="Directory to save the viewport render",
+        description="Directory to save the playblast",
         subtype='DIR_PATH',
         default=""
     )
@@ -746,15 +822,10 @@ class ViewportRenderSettings(PropertyGroup):
         description="Preview the rendered animation after rendering",
         default=True
     )
-    save_file: BoolProperty(
-        name="Save File",
-        description="Save the rendered animation to file",
-        default=True
-    )
     filename_suffix: StringProperty(
         name="Name Suffix",
-        description="Suffix to add to the viewport render filename",
-        default="viewport_render"
+        description="Suffix to add to the playblast filename",
+        default="playblast"
     )
     include_timecode: BoolProperty(
         name="Include Timecode",
@@ -810,11 +881,6 @@ class SnapshotSettings(PropertyGroup):
         description="Preview the rendered image after snapshot",
         default=True
     )
-    save_file: BoolProperty(
-        name="Save File",
-        description="Save the rendered snapshot to file",
-        default=True
-    )
     filename_suffix: StringProperty(
         name="Name Suffix",
         description="Suffix to add to the snapshot filename",
@@ -833,7 +899,7 @@ class KYOKAZ_PT_ToolboxScenePanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="Kyokaz's Toolbox version 2.6", icon="INFO")
+        layout.label(text="Kyokaz's Toolbox version 2.6.3", icon="INFO")
 
 class KYOKAZ_PT_RenderToolsScenePanel(bpy.types.Panel):
     bl_label = "Render Tools"
@@ -841,6 +907,7 @@ class KYOKAZ_PT_RenderToolsScenePanel(bpy.types.Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "scene"
+    bl_order = 3
 
     def draw_header(self, context):
         layout = self.layout
@@ -857,15 +924,59 @@ class KYOKAZ_PT_QuickCameraScenePanel(bpy.types.Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "scene"
+    bl_order = 0
 
     def draw_header(self, context):
         layout = self.layout
         layout.label(icon='CAMERA_DATA')
 
     def draw(self, context):
+        pass
+
+class KYOKAZ_PT_AddCameraScenePanel(bpy.types.Panel):
+    bl_label = "Add Camera"
+    bl_parent_id = "KYOKAZ_PT_QuickCameraScenePanel"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "scene"
+    bl_order = 0
+
+    def draw(self, context):
         layout = self.layout
-        # Copy the content from OBJECT_PT_CameraTools
-        OBJECT_PT_CameraTools.draw(self, context)
+        # Copy the content from OBJECT_PT_AddCamera
+        OBJECT_PT_AddCamera.draw(self, context)
+
+class KYOKAZ_PT_DefaultCameraSettingsScenePanel(bpy.types.Panel):
+    bl_label = "Default Camera Settings"
+    bl_parent_id = "KYOKAZ_PT_QuickCameraScenePanel"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "scene"
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_order = 1
+
+    def draw(self, context):
+        layout = self.layout
+        # Copy the content from OBJECT_PT_DefaultCameraSettings
+        OBJECT_PT_DefaultCameraSettings.draw(self, context)
+
+class KYOKAZ_PT_ActiveCameraSettingsScenePanel(bpy.types.Panel):
+    bl_label = "Active Camera Settings"
+    bl_parent_id = "KYOKAZ_PT_QuickCameraScenePanel"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "scene"
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_order = 2
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object and context.active_object.type == 'CAMERA'
+
+    def draw(self, context):
+        layout = self.layout
+        # Copy the content from OBJECT_PT_ActiveCameraSettings
+        OBJECT_PT_ActiveCameraSettings.draw(self, context)
 
 class KYOKAZ_PT_CameraListScenePanel(bpy.types.Panel):
     bl_label = "Camera List"
@@ -873,9 +984,10 @@ class KYOKAZ_PT_CameraListScenePanel(bpy.types.Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "scene"
+    bl_order = 3
 
     def draw_header(self, context):
-        self.layout.label(icon='OUTLINER_OB_CAMERA')
+        self.layout.label(icon='RESTRICT_RENDER_OFF')
 
     def draw(self, context):
         layout = self.layout
@@ -888,6 +1000,7 @@ class KYOKAZ_PT_ShotListScenePanel(bpy.types.Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "scene"
+    bl_order = 4
 
     def draw_header(self, context):
         self.layout.label(icon='VIEW_CAMERA')
@@ -899,19 +1012,19 @@ class KYOKAZ_PT_ShotListScenePanel(bpy.types.Panel):
 
 class KYOKAZ_PT_CameraInfoOverlayScenePanel(bpy.types.Panel):
     bl_label = "Camera Info Overlay"
-    bl_parent_id = "KYOKAZ_PT_QuickCameraScenePanel"
+    bl_parent_id = "KYOKAZ_PT_ToolboxScenePanel"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "scene"
     bl_options = {'DEFAULT_CLOSED'}
+    bl_order = 4
 
     def draw_header(self, context):
         layout = self.layout
         try:
             preferences = context.preferences.addons[__package__].preferences
             row = layout.row(align=True)
-            row.prop(preferences, "show_camera_info_overlay", text="")
-            row.label(text="", icon='CAMERA_DATA')
+            row.prop(preferences, "show_camera_info_overlay", text="", icon='CAMERA_DATA')
             row.prop(preferences, "show_camera_notes", text="", icon='TEXT')
         except (KeyError, AttributeError):
             pass
@@ -967,6 +1080,9 @@ classes = (
     KYOKAZ_PT_ToolboxScenePanel,
     KYOKAZ_PT_RenderToolsScenePanel,
     KYOKAZ_PT_QuickCameraScenePanel,
+    KYOKAZ_PT_AddCameraScenePanel,
+    KYOKAZ_PT_DefaultCameraSettingsScenePanel,
+    KYOKAZ_PT_ActiveCameraSettingsScenePanel,
     KYOKAZ_PT_CameraListScenePanel,
     KYOKAZ_PT_ShotListScenePanel,
     KYOKAZ_PT_CameraInfoOverlayScenePanel,
@@ -980,6 +1096,7 @@ classes = (
     OBJECT_PT_ShotList,
     OBJECT_PT_CameraList,
     OBJECT_PT_CameraTools,
+    OBJECT_PT_AddCamera,
     OBJECT_PT_DefaultCameraSettings,
     OBJECT_PT_ActiveCameraSettings,
     OBJECT_PT_CameraInfoOverlay,

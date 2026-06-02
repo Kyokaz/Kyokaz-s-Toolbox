@@ -1,7 +1,7 @@
 bl_info = {
     "name": "KyokazToolbox",
     "author": "Kyokaz",
-    "version": (2, 6, 0),
+    "version": (2, 6, 3),
     "blender": (3, 0, 0),
     "location": "",
     "description": "Animation Toolbox",
@@ -131,6 +131,11 @@ class MyAddonPreferences(AddonPreferences):
     show_camera_list_n_panel: BoolProperty(
         name="Show Camera List in N-panel",
         description="Show the Camera List panel in the N-panel",
+        default=True
+    )
+    show_camera_info_overlay_n_panel: BoolProperty(
+        name="Show Camera Info Overlay in N-panel",
+        description="Show the Camera Info Overlay panel in the N-panel",
         default=True
     )
 
@@ -358,14 +363,14 @@ class MyAddonPreferences(AddonPreferences):
         row.operator("wm.url_open", text="Visit GitHub", icon="URL").url = "https://github.com/Kyokaz/Kyokaz-s-Toolbox"
 
 def draw_viewport_header(self, context):
-    """Draw viewport render buttons in the 3D View header."""
+    """Draw playblast and snapshot buttons in the 3D View header."""
     try:
         preferences = context.preferences.addons[__package__].preferences
         layout = self.layout
         if preferences.show_viewport_button:
             layout = layout.row(align=True)
-            layout.operator("object.viewport_render_confirm", text="Viewport", icon='RENDER_STILL')
-            layout.operator("object.viewport_render_settings", text="", icon='PREFERENCES')
+            layout.operator("object.playblast_confirm", text="Playblast", icon='RENDER_ANIMATION')
+            layout.operator("object.playblast_settings", text="", icon='PREFERENCES')
             layout.operator("object.snapshot_render", text="Snapshot", icon='RENDER_RESULT')
             layout.operator("object.snapshot_render_settings", text="", icon='PREFERENCES')
     except (KeyError, AttributeError):
@@ -462,7 +467,14 @@ def register():
     bpy.types.Scene.custom_name_props = bpy.props.PointerProperty(type=operators.CustomNameProperties)
     bpy.types.VIEW3D_HT_header.append(draw_viewport_header)
     bpy.types.VIEW3D_HT_header.append(draw_local_camera_button)
-    bpy.types.TIME_MT_editor_menus.append(draw_set_frame_buttons)
+    
+    # Add Start/End frame buttons to timeline/dopesheet header
+    # TIME_MT_editor_menus was removed in Blender 5.0, use DOPESHEET_HT_header instead
+    if hasattr(bpy.types, 'DOPESHEET_HT_header'):
+        bpy.types.DOPESHEET_HT_header.append(draw_set_frame_buttons)
+    elif hasattr(bpy.types, 'TIME_MT_editor_menus'):
+        bpy.types.TIME_MT_editor_menus.append(draw_set_frame_buttons)
+    
     bpy.types.Scene.camera_index = bpy.props.IntProperty()
     bpy.types.Scene.active_marker_index = bpy.props.IntProperty()
     bpy.types.Scene.snapshot_settings = bpy.props.PointerProperty(type=panels.SnapshotSettings)
@@ -525,7 +537,13 @@ def unregister():
 
     bpy.types.VIEW3D_HT_header.remove(draw_viewport_header)
     bpy.types.VIEW3D_HT_header.remove(draw_local_camera_button)
-    bpy.types.TIME_MT_editor_menus.remove(draw_set_frame_buttons)
+    
+    # Remove Start/End frame buttons from timeline/dopesheet header
+    if hasattr(bpy.types, 'DOPESHEET_HT_header'):
+        bpy.types.DOPESHEET_HT_header.remove(draw_set_frame_buttons)
+    elif hasattr(bpy.types, 'TIME_MT_editor_menus'):
+        bpy.types.TIME_MT_editor_menus.remove(draw_set_frame_buttons)
+    
     del bpy.types.Scene.render_presets
     del bpy.types.Scene.active_marker_index
     del bpy.types.Scene.camera_index
@@ -543,5 +561,4 @@ def unregister():
 
 if __package__ == "__main__":
     register()
-
 

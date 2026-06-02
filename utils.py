@@ -87,4 +87,3 @@ def get_active_collection(context, operator):
     if not active_collection:
         operator.report({'WARNING'}, "No active collection found. Please select or create a collection.")
     return active_collection
-

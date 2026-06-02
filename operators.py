@@ -21,6 +21,13 @@ import re
 _camera_info_draw_handler = None
 _camera_notes_draw_handler = None
 
+def get_action_fcurves(action):
+    """Get fcurves/channels from action, compatible with Blender 4.x and 5.0+."""
+    if action is None:
+        return None
+    # Blender 5.0+ uses 'channels', older versions use 'fcurves'
+    return getattr(action, 'channels', None) or getattr(action, 'fcurves', None)
+
 def get_view_matrix_from_context(context):
     """Retrieve the 3D view matrix from the current context."""
     for area in context.screen.areas:
@@ -463,12 +470,14 @@ class OBJECT_OT_BaseOperator(Operator):
         changed_count = 0
         for obj in context.selected_objects:
             if obj.animation_data and obj.animation_data.action:
-                for fcurve in obj.animation_data.action.fcurves:
-                    for keyframe in fcurve.keyframe_points:
-                        if not selected_only or keyframe.select_control_point:
-                            if keyframe.interpolation != interpolation_type:
-                                keyframe.interpolation = interpolation_type
-                                changed_count += 1
+                fcurves = get_action_fcurves(obj.animation_data.action)
+                if fcurves:
+                    for fcurve in fcurves:
+                        for keyframe in fcurve.keyframe_points:
+                            if not selected_only or keyframe.select_control_point:
+                                if keyframe.interpolation != interpolation_type:
+                                    keyframe.interpolation = interpolation_type
+                                    changed_count += 1
         
         self.report({'INFO'}, f"Applied {interpolation_type} interpolation to {changed_count} keyframes")
         context.area.tag_redraw()
@@ -492,19 +501,20 @@ class OBJECT_OT_toggle_interpolation_selected(OBJECT_OT_BaseOperator):
 
     @classmethod
     def poll(cls, context):
-        return (context.active_object and 
-                context.active_object.animation_data and 
-                context.active_object.animation_data.action and
-                any(any(kp.select_control_point for kp in fc.keyframe_points)
-                    for fc in context.active_object.animation_data.action.fcurves))
+        if not (context.active_object and context.active_object.animation_data and context.active_object.animation_data.action):
+            return False
+        fcurves = get_action_fcurves(context.active_object.animation_data.action)
+        return fcurves and any(any(kp.select_control_point for kp in fc.keyframe_points) for fc in fcurves)
 
     def execute(self, context):
         for obj in context.selected_objects:
             if obj.animation_data and obj.animation_data.action:
-                for fcurve in obj.animation_data.action.fcurves:
-                    for keyframe in fcurve.keyframe_points:
-                        if keyframe.select_control_point:
-                            keyframe.interpolation = 'CONSTANT' if keyframe.interpolation != 'CONSTANT' else 'BEZIER'
+                fcurves = get_action_fcurves(obj.animation_data.action)
+                if fcurves:
+                    for fcurve in fcurves:
+                        for keyframe in fcurve.keyframe_points:
+                            if keyframe.select_control_point:
+                                keyframe.interpolation = 'CONSTANT' if keyframe.interpolation != 'CONSTANT' else 'BEZIER'
         return {'FINISHED'}
 
 class OBJECT_OT_toggle_interpolation_all(OBJECT_OT_BaseOperator):
@@ -518,9 +528,11 @@ class OBJECT_OT_toggle_interpolation_all(OBJECT_OT_BaseOperator):
     def execute(self, context):
         for obj in context.selected_objects:
             if obj.animation_data and obj.animation_data.action:
-                for fcurve in obj.animation_data.action.fcurves:
-                    for keyframe in fcurve.keyframe_points:
-                        keyframe.interpolation = 'CONSTANT' if keyframe.interpolation != 'CONSTANT' else 'BEZIER'
+                fcurves = get_action_fcurves(obj.animation_data.action)
+                if fcurves:
+                    for fcurve in fcurves:
+                        for keyframe in fcurve.keyframe_points:
+                            keyframe.interpolation = 'CONSTANT' if keyframe.interpolation != 'CONSTANT' else 'BEZIER'
         return {'FINISHED'}
 
 class OBJECT_OT_apply_all_constant(OBJECT_OT_BaseOperator):
@@ -562,11 +574,10 @@ class OBJECT_OT_apply_selected_constant(OBJECT_OT_BaseOperator):
 
     @classmethod
     def poll(cls, context):
-        return (context.active_object and 
-                context.active_object.animation_data and 
-                context.active_object.animation_data.action and
-                any(any(kp.select_control_point for kp in fc.keyframe_points)
-                    for fc in context.active_object.animation_data.action.fcurves))
+        if not (context.active_object and context.active_object.animation_data and context.active_object.animation_data.action):
+            return False
+        fcurves = get_action_fcurves(context.active_object.animation_data.action)
+        return fcurves and any(any(kp.select_control_point for kp in fc.keyframe_points) for fc in fcurves)
 
     def execute(self, context):
         return self.apply_interpolation(context, 'CONSTANT', selected_only=True)
@@ -577,11 +588,10 @@ class OBJECT_OT_apply_selected_bezier(OBJECT_OT_BaseOperator):
 
     @classmethod
     def poll(cls, context):
-        return (context.active_object and 
-                context.active_object.animation_data and 
-                context.active_object.animation_data.action and
-                any(any(kp.select_control_point for kp in fc.keyframe_points)
-                    for fc in context.active_object.animation_data.action.fcurves))
+        if not (context.active_object and context.active_object.animation_data and context.active_object.animation_data.action):
+            return False
+        fcurves = get_action_fcurves(context.active_object.animation_data.action)
+        return fcurves and any(any(kp.select_control_point for kp in fc.keyframe_points) for fc in fcurves)
 
     def execute(self, context):
         return self.apply_interpolation(context, 'BEZIER', selected_only=True)
@@ -592,11 +602,10 @@ class OBJECT_OT_apply_selected_linear(OBJECT_OT_BaseOperator):
 
     @classmethod
     def poll(cls, context):
-        return (context.active_object and 
-                context.active_object.animation_data and 
-                context.active_object.animation_data.action and
-                any(any(kp.select_control_point for kp in fc.keyframe_points)
-                    for fc in context.active_object.animation_data.action.fcurves))
+        if not (context.active_object and context.active_object.animation_data and context.active_object.animation_data.action):
+            return False
+        fcurves = get_action_fcurves(context.active_object.animation_data.action)
+        return fcurves and any(any(kp.select_control_point for kp in fc.keyframe_points) for fc in fcurves)
 
     def execute(self, context):
         return self.apply_interpolation(context, 'LINEAR', selected_only=True)
@@ -617,11 +626,10 @@ class OBJECT_OT_add_keyframes_operator(OBJECT_OT_BaseOperator):
 
     @classmethod
     def poll(cls, context):
-        return (context.active_object and 
-                context.active_object.animation_data and 
-                context.active_object.animation_data.action and
-                any(any(kp.select_control_point for kp in fc.keyframe_points)
-                    for fc in context.active_object.animation_data.action.fcurves))
+        if not (context.active_object and context.active_object.animation_data and context.active_object.animation_data.action):
+            return False
+        fcurves = get_action_fcurves(context.active_object.animation_data.action)
+        return fcurves and any(any(kp.select_control_point for kp in fc.keyframe_points) for fc in fcurves)
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
@@ -634,7 +642,12 @@ class OBJECT_OT_add_keyframes_operator(OBJECT_OT_BaseOperator):
             self.report({'WARNING'}, "No action found")
             return {'CANCELLED'}
 
-        for fc in action.fcurves:
+        fcurves = get_action_fcurves(action)
+        if not fcurves:
+            self.report({'WARNING'}, "No animation channels found")
+            return {'CANCELLED'}
+
+        for fc in fcurves:
             keyframes = [kp for kp in fc.keyframe_points if kp.select_control_point]
             for i in range(len(keyframes) - 1):
                 start_kp, end_kp = keyframes[i], keyframes[i + 1]
@@ -657,11 +670,10 @@ class OBJECT_OT_delete_keyframes_per_steps(OBJECT_OT_BaseOperator):
 
     @classmethod
     def poll(cls, context):
-        return (context.active_object and 
-                context.active_object.animation_data and 
-                context.active_object.animation_data.action and
-                any(any(kp.select_control_point for kp in fc.keyframe_points)
-                    for fc in context.active_object.animation_data.action.fcurves))
+        if not (context.active_object and context.active_object.animation_data and context.active_object.animation_data.action):
+            return False
+        fcurves = get_action_fcurves(context.active_object.animation_data.action)
+        return fcurves and any(any(kp.select_control_point for kp in fc.keyframe_points) for fc in fcurves)
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
@@ -673,7 +685,13 @@ class OBJECT_OT_delete_keyframes_per_steps(OBJECT_OT_BaseOperator):
             self.report({'WARNING'}, "No animation data found")
             return {'CANCELLED'}
 
-        for fc in action.fcurves:
+        # Blender 5.0 changed fcurves to channels
+        fcurves = get_action_fcurves(action)
+        if not fcurves:
+            self.report({'WARNING'}, "No animation channels found")
+            return {'CANCELLED'}
+
+        for fc in fcurves:
             keyframes = [kp for kp in fc.keyframe_points if kp.select_control_point]
             for i in range(len(keyframes) - 1, -1, -self.steps):
                 fc.keyframe_points.remove(keyframes[i])
@@ -697,11 +715,10 @@ class OBJECT_OT_bake_keyframes_per_steps(OBJECT_OT_BaseOperator):
 
     @classmethod
     def poll(cls, context):
-        return (context.active_object and 
-                context.active_object.animation_data and 
-                context.active_object.animation_data.action and
-                any(any(kp.select_control_point for kp in fc.keyframe_points)
-                    for fc in context.active_object.animation_data.action.fcurves))
+        if not (context.active_object and context.active_object.animation_data and context.active_object.animation_data.action):
+            return False
+        fcurves = get_action_fcurves(context.active_object.animation_data.action)
+        return fcurves and any(any(kp.select_control_point for kp in fc.keyframe_points) for fc in fcurves)
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
@@ -722,7 +739,12 @@ class OBJECT_OT_bake_keyframes_per_steps(OBJECT_OT_BaseOperator):
         original_start_frame = context.scene.frame_start
         original_end_frame = context.scene.frame_end
 
-        selected_keyframes = [kp.co.x for fc in action.fcurves for kp in fc.keyframe_points if kp.select_control_point]
+        fcurves = get_action_fcurves(action)
+        if not fcurves:
+            self.report({'WARNING'}, "No animation channels found")
+            return {'CANCELLED'}
+
+        selected_keyframes = [kp.co.x for fc in fcurves for kp in fc.keyframe_points if kp.select_control_point]
         if not selected_keyframes:
             self.report({'WARNING'}, "No keyframes selected")
             return {'CANCELLED'}
@@ -1077,6 +1099,66 @@ class OBJECT_OT_ApplyPassepartoutToAllCameras(Operator):
         return {'FINISHED'}
 
 
+class OBJECT_OT_ApplyClippingToAllCameras(Operator):
+    bl_idname = "object.apply_clipping_to_all_cameras"
+    bl_label = "Apply to All Cameras"
+    bl_description = "Apply the default clipping values to all cameras in the scene"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        props = context.scene.custom_name_props
+        clip_start = props.default_clip_start
+        clip_end = props.default_clip_end
+        
+        # Count cameras that will be affected
+        camera_count = 0
+        for obj in bpy.data.objects:
+            if obj.type == 'CAMERA':
+                obj.data.clip_start = clip_start
+                obj.data.clip_end = clip_end
+                camera_count += 1
+        
+        if camera_count > 0:
+            self.report({'INFO'}, f"Applied clipping (Start: {clip_start}, End: {clip_end}) to {camera_count} camera(s)")
+        else:
+            self.report({'WARNING'}, "No cameras found in the scene")
+        
+        return {'FINISHED'}
+
+
+class OBJECT_OT_TogglePanelVisibility(Operator):
+    bl_idname = "object.toggle_panel_visibility"
+    bl_label = "Toggle Panel Visibility"
+    bl_description = "Toggle visibility of a specific panel"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    panel_name: StringProperty()
+    
+    def execute(self, context):
+        try:
+            preferences = context.preferences.addons[__package__].preferences
+            
+            if self.panel_name == "render_tools":
+                preferences.show_render_tools_n_panel = not preferences.show_render_tools_n_panel
+            elif self.panel_name == "shot_list":
+                preferences.show_shot_list_n_panel = not preferences.show_shot_list_n_panel
+            elif self.panel_name == "camera_list":
+                preferences.show_camera_list_n_panel = not preferences.show_camera_list_n_panel
+            elif self.panel_name == "camera_info_overlay":
+                preferences.show_camera_info_overlay_n_panel = not preferences.show_camera_info_overlay_n_panel
+            
+            # Force UI refresh
+            for area in context.screen.areas:
+                if area.type in {'VIEW_3D', 'PROPERTIES'}:
+                    area.tag_redraw()
+            
+        except (KeyError, AttributeError) as e:
+            self.report({'ERROR'}, f"Failed to toggle panel: {str(e)}")
+            return {'CANCELLED'}
+        
+        return {'FINISHED'}
+
+
 class OBJECT_OT_CreateCameraCollection(Operator):
     bl_idname = "object.create_camera_collection"
     bl_label = "Create Camera Collection"
@@ -1304,9 +1386,10 @@ class ShowPopupMessageOperator(OBJECT_OT_BaseOperator):
         show_message_box("Empty the text field to use existing collection.", "Add Collection", 'INFO')
         return {'FINISHED'}
 
-class OBJECT_OT_ViewportRenderConfirm(OBJECT_OT_BaseOperator):
-    bl_idname = "object.viewport_render_confirm"
-    bl_label = "Viewport Render Confirm"
+class OBJECT_OT_PlayblastConfirm(OBJECT_OT_BaseOperator):
+    bl_idname = "object.playblast_confirm"
+    bl_label = "Playblast"
+    bl_description = "Create a playblast (viewport animation render) of the current timeline"
 
     def invoke(self, context, event):
         return context.window_manager.invoke_confirm(self, event)
@@ -1315,61 +1398,107 @@ class OBJECT_OT_ViewportRenderConfirm(OBJECT_OT_BaseOperator):
         scene = context.scene
         settings = scene.viewport_render_settings
 
+        # Ensure output directory exists
         try:
             output_dir = ensure_output_directory(settings.output_directory)
         except Exception as e:
             report_error(self, f"Failed to create output directory: {e}")
             return {'CANCELLED'}
 
-        filename = generate_output_filename(output_dir, settings.filename_suffix)
+        # Backup original render settings
+        original_filepath = scene.render.filepath
+        original_use_stamp = scene.render.use_stamp
+        original_stamp_settings = {}
+        
+        if settings.include_timecode:
+            # Backup stamp settings
+            for prop in ['stamp_background', 'stamp_foreground', 'stamp_font_size']:
+                if hasattr(scene.render, prop):
+                    original_stamp_settings[prop] = getattr(scene.render, prop)
+            
+            # Apply stamp settings
+            scene.render.use_stamp = True
+            scene.render.stamp_background = settings.stamp_background
+            scene.render.stamp_foreground = settings.stamp_foreground
+            scene.render.stamp_font_size = settings.stamp_font_size
+            
+            # Apply stamp options
+            for prop in dir(settings):
+                if prop.startswith('use_stamp_'):
+                    stamp_prop = prop.replace('use_stamp_', 'use_stamp_')
+                    if hasattr(scene.render, stamp_prop):
+                        setattr(scene.render, stamp_prop, getattr(settings, prop))
 
-        # Set the render output path
-        scene.render.filepath = filename
+        # Generate filename
+        playblast_filepath = generate_output_filename(output_dir, settings.filename_suffix)
+        scene.render.filepath = playblast_filepath
 
-        # Perform the viewport render
+        # Perform the playblast (viewport render)
         bpy.ops.render.opengl(animation=True, write_still=True, view_context=True)
 
-        # Optionally preview the render
+        # Optionally preview the render (before restoring settings)
         if settings.preview_render:
             bpy.ops.render.play_rendered_anim()
 
-        self.report({'INFO'}, f"Viewport render saved to: {scene.render.filepath}")
+        # Restore original settings
+        scene.render.filepath = original_filepath
+        scene.render.use_stamp = original_use_stamp
+        for prop, value in original_stamp_settings.items():
+            if hasattr(scene.render, prop):
+                setattr(scene.render, prop, value)
+
+        self.report({'INFO'}, f"Playblast saved to: {playblast_filepath}")
         return {'FINISHED'}
 
-class OBJECT_OT_ViewportRenderSettings(OBJECT_OT_BaseOperator):
-    bl_idname = "object.viewport_render_settings"
-    bl_label = "Viewport Render Settings"
+class OBJECT_OT_PlayblastSettings(OBJECT_OT_BaseOperator):
+    bl_idname = "object.playblast_settings"
+    bl_label = "Playblast Settings"
+    bl_description = "Configure playblast output settings"
 
     def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self)
+        return context.window_manager.invoke_props_dialog(self, width=400)
 
     def draw(self, context):
         layout = self.layout
         settings = context.scene.viewport_render_settings
 
         layout.prop(settings, "output_directory")
-        layout.operator("object.open_viewport_render_directory", text="Open Output Directory")
+        layout.operator("object.open_playblast_directory", text="Open Output Directory", icon='FILE_FOLDER')
+        layout.separator()
         layout.prop(settings, "preview_render")
-        layout.prop(settings, "save_file")
         layout.prop(settings, "filename_suffix")
+        layout.separator()
         layout.prop(settings, "include_timecode")
         
         if settings.include_timecode:
             box = layout.box()
-            box.label(text="Stamp Settings")
-            box.prop(settings, "stamp_background")
-            box.prop(settings, "stamp_foreground")
-            box.prop(settings, "stamp_font_size")
-            for prop in [prop for prop in dir(settings) if prop.startswith("use_stamp_")]:
-                box.prop(settings, prop)
+            box.label(text="Timecode Settings", icon='TIME')
+            box.prop(settings, "stamp_background", text="Background")
+            box.prop(settings, "stamp_foreground", text="Foreground")
+            box.prop(settings, "stamp_font_size", text="Font Size")
+            
+            box.separator()
+            col = box.column(align=True)
+            col.label(text="Display Options:")
+            col.prop(settings, "use_stamp_camera")
+            col.prop(settings, "use_stamp_frame")
+            col.prop(settings, "use_stamp_time")
+            col.prop(settings, "use_stamp_filename")
+            col.prop(settings, "use_stamp_date")
+            col.prop(settings, "use_stamp_frame_range")
+            col.prop(settings, "use_stamp_scene")
+            col.prop(settings, "use_stamp_note")
+            col.prop(settings, "use_stamp_marker")
+            col.prop(settings, "use_stamp_render_time")
 
     def execute(self, context):
-        self.report({'INFO'}, "Viewport Render settings applied.")
+        self.report({'INFO'}, "Playblast settings updated.")
         return {'FINISHED'}
 
 class OBJECT_OT_SnapshotRender(OBJECT_OT_BaseOperator):
     bl_idname = "object.snapshot_render"
-    bl_label = "Snapshot Render"
+    bl_label = "Snapshot"
+    bl_description = "Capture a single frame viewport snapshot"
 
     def invoke(self, context, event):
         return context.window_manager.invoke_confirm(self, event)
@@ -1378,64 +1507,76 @@ class OBJECT_OT_SnapshotRender(OBJECT_OT_BaseOperator):
         scene = context.scene
         settings = scene.snapshot_settings
 
-        # Default to the system's temporary directory if no directory is set
-        output_dir = bpy.path.abspath(settings.output_directory) if settings.output_directory else tempfile.gettempdir()
-        if not os.path.exists(output_dir):
-            try:
-                os.makedirs(output_dir)
-            except Exception as e:
-                self.report({'ERROR'}, f"Failed to create directory: {e}")
-                return {'CANCELLED'}
+        # Ensure output directory exists
+        try:
+            output_dir = ensure_output_directory(settings.output_directory) if settings.output_directory else tempfile.gettempdir()
+        except Exception as e:
+            report_error(self, f"Failed to create output directory: {e}")
+            return {'CANCELLED'}
 
         # Backup original render settings
         original_file_format = scene.render.image_settings.file_format
         original_filepath = scene.render.filepath
 
-        # Generate the output filename
+        # Generate the output filename with sanitization
         blend_name = bpy.path.basename(bpy.data.filepath)
         blend_name = os.path.splitext(blend_name)[0] if blend_name else "untitled"
+        blend_name = sanitize_filename(blend_name)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        suffix = settings.filename_suffix
+        suffix = sanitize_filename(settings.filename_suffix)
         filename = f"{blend_name}_{suffix}_{timestamp}.png"
         file_path = os.path.join(output_dir, filename)
 
-        # Update render settings
-        scene.render.image_settings.file_format = 'PNG'
-        scene.render.filepath = file_path
+        try:
+            # Update render settings
+            scene.render.image_settings.file_format = 'PNG'
+            scene.render.filepath = file_path
 
-        # Perform the snapshot render
-        bpy.ops.render.opengl(write_still=True, view_context=True)
+            # Perform the snapshot render
+            bpy.ops.render.opengl(write_still=True, view_context=True)
 
-        # Restore original settings
-        scene.render.image_settings.file_format = original_file_format
-        scene.render.filepath = original_filepath
+            # Verify file was created
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"Snapshot file was not created: {file_path}")
+
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to create snapshot: {e}")
+            return {'CANCELLED'}
+        finally:
+            # Always restore original settings
+            scene.render.image_settings.file_format = original_file_format
+            scene.render.filepath = original_filepath
 
         # Optionally preview the rendered snapshot
         if settings.preview_render:
-            bpy.ops.render.view_show('INVOKE_DEFAULT')
+            try:
+                bpy.ops.render.view_show('INVOKE_DEFAULT')
+            except:
+                pass  # Preview may fail if no image editor available
 
         self.report({'INFO'}, f"Snapshot saved to: {file_path}")
         return {'FINISHED'}
     
 class OBJECT_OT_SnapshotRenderSettings(OBJECT_OT_BaseOperator):
     bl_idname = "object.snapshot_render_settings"
-    bl_label = "Snapshot Render Settings"
+    bl_label = "Snapshot Settings"
+    bl_description = "Configure snapshot output settings"
 
     def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self)
+        return context.window_manager.invoke_props_dialog(self, width=350)
 
     def draw(self, context):
         layout = self.layout
         settings = context.scene.snapshot_settings
 
         layout.prop(settings, "output_directory")
-        layout.operator("object.open_snapshot_directory", text="Open Output Directory")
+        layout.operator("object.open_snapshot_directory", text="Open Output Directory", icon='FILE_FOLDER')
+        layout.separator()
         layout.prop(settings, "preview_render")
-        layout.prop(settings, "save_file")
         layout.prop(settings, "filename_suffix")
 
     def execute(self, context):
-        self.report({'INFO'}, "Settings applied.")
+        self.report({'INFO'}, "Snapshot settings updated.")
         return {'FINISHED'}
     
 class OBJECT_OT_OpenSnapshotDirectory(OBJECT_OT_BaseOperator):
@@ -1443,7 +1584,12 @@ class OBJECT_OT_OpenSnapshotDirectory(OBJECT_OT_BaseOperator):
     bl_label = "Open Snapshot Directory"
 
     def execute(self, context):
-        output_dir = context.scene.snapshot_settings.output_directory
+        output_dir = bpy.path.abspath(context.scene.snapshot_settings.output_directory)
+        
+        if not output_dir:
+            self.report({'WARNING'}, "No output directory set")
+            return {'CANCELLED'}
+            
         success, message = safe_open_directory(output_dir)
 
         if success:
@@ -1453,13 +1599,18 @@ class OBJECT_OT_OpenSnapshotDirectory(OBJECT_OT_BaseOperator):
             self.report({'ERROR'}, message)
             return {'CANCELLED'}
 
-class OBJECT_OT_OpenOutputDirectory(OBJECT_OT_BaseOperator):
-    bl_idname = "object.open_output_directory"
-    bl_label = "Open Output Directory"
+class OBJECT_OT_OpenPlayblastDirectory(OBJECT_OT_BaseOperator):
+    bl_idname = "object.open_playblast_directory"
+    bl_label = "Open Playblast Directory"
 
     def execute(self, context):
         settings = context.scene.viewport_render_settings
         output_dir = bpy.path.abspath(settings.output_directory)
+        
+        if not output_dir:
+            self.report({'WARNING'}, "No output directory set")
+            return {'CANCELLED'}
+            
         success, message = safe_open_directory(output_dir)
 
         if success:
@@ -3260,6 +3411,7 @@ def draw_render_presets(self, context, layout):
     row.template_list("RENDER_UL_presets_list", "", context.scene.render_presets,
                      "presets", context.scene.render_presets, "active_preset_index")
     
+    # Side buttons column
     col = row.column(align=True)
     col.operator("render.add_preset", icon='ADD', text="")
     col.operator("render.remove_preset", icon='REMOVE', text="")
@@ -3268,6 +3420,7 @@ def draw_render_presets(self, context, layout):
     col.operator("render.save_to_preset", icon='FILE_TICK', text="")
     col.operator("render.apply_preset", icon='CHECKMARK', text="")
     
+    # Backup/restore and export/import buttons below
     row = box.row(align=True)
     row.operator("render.backup_all_presets", icon='EXPORT', text="Batch Export")
     row.operator("render.restore_all_presets", icon='IMPORT', text="Batch Import")
@@ -3302,6 +3455,8 @@ classes = (
     CreateExcludeHiddenCollectionOperator,
     CustomNameProperties,
     OBJECT_OT_ApplyPassepartoutToAllCameras,
+    OBJECT_OT_ApplyClippingToAllCameras,
+    OBJECT_OT_TogglePanelVisibility,
     OBJECT_OT_CreateCameraCollection,
     AddCameraButton,
     AddCameraWithMarkerButton,
@@ -3309,12 +3464,12 @@ classes = (
     AddCameraShotCopyPropertiesButton,
     SCENE_OT_SetPreviewRange,
     ShowPopupMessageOperator,
-    OBJECT_OT_ViewportRenderConfirm,
-    OBJECT_OT_ViewportRenderSettings,
+    OBJECT_OT_PlayblastConfirm,
+    OBJECT_OT_PlayblastSettings,
     OBJECT_OT_SnapshotRender,
     OBJECT_OT_SnapshotRenderSettings,
     OBJECT_OT_OpenSnapshotDirectory,
-    OBJECT_OT_OpenOutputDirectory,
+    OBJECT_OT_OpenPlayblastDirectory,
     SCENE_OT_JumpToMarker,
     SCENE_OT_RemoveAllMarkers,
     SCENE_OT_RemoveMarkerAndCamera,
@@ -3365,8 +3520,9 @@ classes = (
 )
 
 
+# Classes are registered in __init__.py to avoid double registration issues
 
 if __name__ == "__main__":
     import bpy
+    # Can't register from here when running as a module
     pass
-
