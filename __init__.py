@@ -3,7 +3,7 @@
 bl_info = {
     "name": "KyokazToolbox",
     "author": "Kyokaz",
-    "version": (2, 6, 4),
+    "version": (2, 6, 5),
     "blender": (3, 0, 0),
     "location": "",
     "description": "Animation Toolbox",
@@ -161,18 +161,25 @@ class MyAddonPreferences(AddonPreferences):
         name="Position X",
         description="Horizontal position from left of the camera info overlay",
         default=30,
-        min=0,
-        max=4000,
-        update=lambda self, context: _redraw_viewports(context)
+        soft_min=-4000,
+        soft_max=4000,
+        update=lambda self, context: (operators.sync_camera_info_overlay_position(self, context), _redraw_viewports(context))
     )
 
     camera_info_position_y: bpy.props.IntProperty(
         name="Position Y",
         description="Vertical position from bottom of the camera info overlay",
         default=100,
-        min=0,
-        max=4000,
-        update=lambda self, context: _redraw_viewports(context)
+        soft_min=-4000,
+        soft_max=4000,
+        update=lambda self, context: (operators.sync_camera_info_overlay_position(self, context), _redraw_viewports(context))
+    )
+
+    camera_info_sticky_overlay: BoolProperty(
+        name="Sticky Overlay",
+        description="Keep the camera info overlay attached to the camera frame while keeping the current screen position",
+        default=False,
+        update=lambda self, context: (operators.sync_camera_info_overlay_position(self, context), _redraw_viewports(context))
     )
 
     camera_info_font_size: bpy.props.IntProperty(

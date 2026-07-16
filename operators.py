@@ -21,6 +21,31 @@ import re
 # Global variable to store the draw handler
 _camera_info_draw_handler = None
 _camera_notes_draw_handler = None
+_camera_info_syncing_position = False
+_camera_info_sticky_anchor_x = 0.5
+_camera_info_sticky_anchor_y = 0.5
+_camera_info_normal_position_x = 30.0
+_camera_info_normal_position_y = 100.0
+
+
+def _safe_redraw_viewports(context):
+    """Safely redraw all 3D viewports without raising on invalid context state."""
+    try:
+        if context is None:
+            return
+        wm = getattr(context, "window_manager", None)
+        if wm is None:
+            return
+        for window in wm.windows:
+            screen = getattr(window, "screen", None)
+            if screen is None:
+                continue
+            for area in screen.areas:
+                if getattr(area, "type", None) == 'VIEW_3D':
+                    area.tag_redraw()
+    except Exception:
+        pass
+
 
 def get_action_fcurves(action):
     """Get fcurves/channels from action, compatible with Blender 4.x and 5.0+."""
@@ -37,6 +62,113 @@ def get_view_matrix_from_context(context):
                 if space.type == 'VIEW_3D' and space.region_3d:
                     return space.region_3d.view_matrix
     return mathutils.Matrix.Identity(4)  # Default to identity if no VIEW_3D found
+
+
+def project_camera_frame_point(region, rv3d, camera, norm_x, norm_y):
+    """Project a point on the camera frame into 2D region coordinates."""
+    try:
+        frame_local = camera.data.view_frame()
+        frame_world = [camera.matrix_world @ v for v in frame_local]
+    except Exception:
+        return None
+
+    def lerp(v1, v2, t):
+        return v1 * (1.0 - t) + v2 * t
+
+    top = lerp(frame_world[0], frame_world[1], norm_x)
+    bottom = lerp(frame_world[3], frame_world[2], norm_x)
+    point_world = lerp(bottom, top, norm_y)
+
+    return location_3d_to_region_2d(region, rv3d, point_world)
+
+
+def get_camera_view_region_and_rv3d(context):
+    """Return the active camera-view 3D region and rv3d from the current window."""
+    if not context or not getattr(context, "window_manager", None):
+        return None, None
+
+    for window in context.window_manager.windows:
+        for area in window.screen.areas:
+            if area.type != 'VIEW_3D':
+                continue
+            for region in area.regions:
+                if region.type != 'WINDOW':
+                    continue
+                for space in area.spaces:
+                    if space.type != 'VIEW_3D':
+                        continue
+                    rv3d = getattr(space, "region_3d", None)
+                    if rv3d and rv3d.view_perspective == 'CAMERA':
+                        return region, rv3d
+    return None, None
+
+
+def screen_to_camera_frame_normalized(region, rv3d, camera, screen_x, screen_y):
+    """Convert a 2D screen position to normalized camera-frame coordinates."""
+    try:
+        mouse_region = Vector((screen_x, screen_y))
+        ray_origin = region_2d_to_origin_3d(region, rv3d, mouse_region)
+        ray_dir = region_2d_to_vector_3d(region, rv3d, mouse_region)
+
+        frame_local = camera.data.view_frame()
+        frame_world = [camera.matrix_world @ v for v in frame_local]
+
+        bl_world = frame_world[3]
+        br_world = frame_world[2]
+        tl_world = frame_world[0]
+        plane_normal = (br_world - bl_world).cross(tl_world - bl_world).normalized()
+
+        denom = ray_dir.dot(plane_normal)
+        if abs(denom) <= 1e-6:
+            return None
+
+        t = (bl_world - ray_origin).dot(plane_normal) / denom
+        point_world = ray_origin + ray_dir * t
+        point_local = camera.matrix_world.inverted() @ point_world
+
+        bl_local = frame_local[3]
+        r = frame_local[2] - frame_local[3]
+        u = frame_local[0] - frame_local[3]
+
+        mat = mathutils.Matrix(((r.x, u.x), (r.y, u.y)))
+        vec = mathutils.Vector((point_local.x - bl_local.x, point_local.y - bl_local.y))
+        if mat.determinant() == 0:
+            return None
+
+        sol = mat.inverted() @ vec
+        return sol[0], sol[1]
+    except Exception:
+        return None
+
+
+def sync_camera_info_overlay_position(preferences, context):
+    """Update the sticky anchor separately from the normal screen-space position."""
+    global _camera_info_sticky_anchor_x, _camera_info_sticky_anchor_y
+    global _camera_info_normal_position_x, _camera_info_normal_position_y
+
+    if preferences is None or context is None:
+        return
+
+    scene = getattr(context, "scene", None)
+    camera = getattr(scene, "camera", None)
+    if camera is None or camera.type != 'CAMERA':
+        return
+
+    region, rv3d = get_camera_view_region_and_rv3d(context)
+    if not region or not rv3d:
+        return
+
+    screen_x = float(preferences.camera_info_position_x)
+    screen_y = float(preferences.camera_info_position_y)
+
+    if preferences.camera_info_sticky_overlay:
+        normalized = screen_to_camera_frame_normalized(region, rv3d, camera, screen_x, screen_y)
+        if normalized is not None:
+            _camera_info_sticky_anchor_x, _camera_info_sticky_anchor_y = normalized
+
+    _camera_info_normal_position_x = screen_x
+    _camera_info_normal_position_y = screen_y
+
 
 def sanitize_filename(filename):
     """Sanitize a filename to prevent path traversal attacks and invalid characters."""
@@ -84,275 +216,158 @@ def safe_open_directory(directory_path):
 
 def draw_camera_info_overlay():
     """Draw camera information overlay in the viewport when in camera view."""
-    context = bpy.context
-    
-    # Check if we're in camera view
-    if not context.space_data or context.space_data.type != 'VIEW_3D':
-        return
-    
-    region_3d = context.space_data.region_3d
-    if not region_3d or region_3d.view_perspective != 'CAMERA':
-        return
-    
-    scene = context.scene
-    camera = scene.camera
-    
-    if not camera or camera.type != 'CAMERA':
-        return
-    
-    # Get preferences
-    preferences = get_addon_preferences(context)
-    if preferences is None:
-        return
-    
-    # Get camera info
-    camera_data = camera.data
-    camera_name = camera.name
-    
-    # Get frame range info for shots
-    props = scene.custom_name_props
-    shot_info = None
-    
-    # Check if camera is in a shot (timeline marker)
-    for marker in scene.timeline_markers:
-        if marker.camera and marker.camera == camera:
-            # Find the shot duration
-            marker_index = list(scene.timeline_markers).index(marker)
-            if marker_index < len(scene.timeline_markers) - 1:
-                next_marker = list(scene.timeline_markers)[marker_index + 1]
-                end_frame = next_marker.frame
-            else:
-                end_frame = scene.frame_end
-            
-            shot_frames = end_frame - marker.frame
-            shot_info = {
-                'name': marker.name,
-                'start': marker.frame,
-                'end': end_frame,
-                'frames': shot_frames
-            }
-            break
-    
-    # Prepare text information based on user preferences
-    info_parts = []
-    
-    # Camera/Shot name
-    if preferences.camera_info_show_name:
-        if shot_info:
-            info_parts.append(f"Shot: {shot_info['name']}")
-        else:
-            info_parts.append(f"Camera: {camera_name}")
-    
-    # Frame range (only for shots)
-    if preferences.camera_info_show_frames and shot_info:
-        info_parts.append(f"Frames: {shot_info['start']}-{shot_info['end']} ({shot_info['frames']}f)")
-    
-    # Focal Length
-    if preferences.camera_info_show_focal:
-        if camera_data.type == 'ORTHO':
-            info_parts.append(f"Ortho Scale: {camera_data.ortho_scale:.2f}")
-        else:
-            info_parts.append(f"Focal Length: {camera_data.lens:.1f}mm")
-    
-    # Focus Distance (if DoF is enabled)
-    if camera_data.dof.use_dof:
-        if preferences.camera_info_show_focus:
-            info_parts.append(f"Focus: {camera_data.dof.focus_distance:.2f}m")
-        if preferences.camera_info_show_fstop:
-            info_parts.append(f"F-Stop: f/{camera_data.dof.aperture_fstop:.1f}")
-    
-    # Don't draw if no info to display
-    if not info_parts:
-        return
-    
-    # Combine info based on layout preference
-    if preferences.camera_info_single_line:
-        info_lines = [preferences.camera_info_separator.join(info_parts)]
-    else:
-        info_lines = info_parts
-    
-    # Draw the text
-    font_id = 0
-    font_color = preferences.camera_info_font_color
-    blf.color(font_id, font_color[0], font_color[1], font_color[2], font_color[3])
-    blf.size(font_id, preferences.camera_info_font_size)
-    
-    region = context.region
-    
-    # Position based on user preferences (absolute coordinates from bottom-left)
-    x_offset = preferences.camera_info_position_x
-    y_start = preferences.camera_info_position_y
-    line_height = preferences.camera_info_font_size + 6
-    
-    # Draw background rectangle
-    import gpu
-    from gpu_extras.batch import batch_for_shader
-    
-    # Calculate max text width for background
-    max_width = 0
-    for line in info_lines:
-        text_width, text_height = blf.dimensions(font_id, line)
-        if text_width > max_width:
-            max_width = text_width
-    
-    # Draw semi-transparent background
-    padding = 10
-    bg_x = x_offset - padding
-    bg_y = y_start - padding
-    bg_width = max_width + padding * 2
-    bg_height = len(info_lines) * line_height + padding * 2
-    
-    # Enable proper alpha blending
-    gpu.state.blend_set('ALPHA')
-    
-    shader = gpu.shader.from_builtin('UNIFORM_COLOR')
-    batch = batch_for_shader(
-        shader, 'TRI_FAN',
-        {"pos": [
-            (bg_x, bg_y),
-            (bg_x + bg_width, bg_y),
-            (bg_x + bg_width, bg_y + bg_height),
-            (bg_x, bg_y + bg_height)
-        ]},
-    )
-    
-    shader.bind()
-    # Use the color from preferences (RGBA)
-    bg_color = preferences.camera_info_background_color
-    shader.uniform_float("color", (bg_color[0], bg_color[1], bg_color[2], bg_color[3]))
-    batch.draw(shader)
-    
-    # Restore default blend state
-    gpu.state.blend_set('NONE')
-    
-    # Draw text lines
-    for i, line in enumerate(info_lines):
-        y_pos = y_start + (len(info_lines) - 1 - i) * line_height
-        blf.position(font_id, x_offset, y_pos, 0)
-        blf.draw(font_id, line)
-
-def register_camera_info_overlay():
-    """Register the camera info overlay draw handler."""
-    global _camera_info_draw_handler
-    
-    if _camera_info_draw_handler is None:
-        _camera_info_draw_handler = bpy.types.SpaceView3D.draw_handler_add(
-            draw_camera_info_overlay, (), 'WINDOW', 'POST_PIXEL'
-        )
-
-def unregister_camera_info_overlay():
-    """Unregister the camera info overlay draw handler."""
-    global _camera_info_draw_handler
-    
-    if _camera_info_draw_handler is not None:
-        bpy.types.SpaceView3D.draw_handler_remove(_camera_info_draw_handler, 'WINDOW')
-        _camera_info_draw_handler = None
-
-def toggle_camera_info_overlay(enable):
-    """Toggle the camera info overlay on or off."""
-    if enable:
-        register_camera_info_overlay()
-    else:
-        unregister_camera_info_overlay()
-
-def toggle_camera_notes_overlay(enable):
-    """Toggle the camera notes overlay on or off."""
-    if enable:
-        register_camera_notes_overlay()
-    else:
-        unregister_camera_notes_overlay()
-
-def draw_camera_notes_overlay():
-    """Draw camera notes overlay in the viewport when in camera view."""
-    context = bpy.context
-    
-    # Check if we're in camera view
-    if not context.space_data or context.space_data.type != 'VIEW_3D':
-        return
-    
-    region_3d = context.space_data.region_3d
-    if not region_3d or region_3d.view_perspective != 'CAMERA':
-        return
-    
-    scene = context.scene
-    camera = scene.camera
-    
-    if not camera or camera.type != 'CAMERA':
-        return
-    
-    # Get notes for this camera
-    camera_notes = [note for note in scene.camera_notes 
-                    if note.camera_name == camera.name and note.enabled]
-    
-    if not camera_notes:
-        return
-
-    region = context.region
-    rv3d = context.space_data.region_3d
-    font_id = 0
-
-    # Precompute camera frame corners in world space so note positions
-    # are anchored to the camera image plane (like Blender annotations)
     try:
-        frame_local = camera.data.view_frame()
-        # Pre-transform to world space
-        frame_world = [camera.matrix_world @ v for v in frame_local]
-    except Exception:
-        frame_local = None
-        frame_world = None
+        context = bpy.context
 
-    def lerp(v1, v2, t):
-        return v1 * (1.0 - t) + v2 * t
+        # Check if we're in camera view
+        if not context or not getattr(context, "space_data", None) or context.space_data.type != 'VIEW_3D':
+            return
 
-    # Set up proper GPU state for 2D overlay rendering
-    gpu.state.blend_set('ALPHA')
-    gpu.state.depth_test_set('NONE')
+        region_3d = getattr(context.space_data, "region_3d", None)
+        if not region_3d or region_3d.view_perspective != 'CAMERA':
+            return
 
-    # Draw each note (background + text)
-    for note in camera_notes:
-        # If we have a valid camera frame, compute a 3D point on the camera image plane
-        if frame_world is not None:
-            # Convert pixel coordinates to normalized (0-1 range for interpolation)
-            # Assume a reference frame width/height (e.g., 1920x1080 at default FOV)
-            # This makes pixels relative to camera intrinsic dimensions, not screen pixels
-            norm_x = note.position_x / 1000.0  # Divide by reference to get normalized
-            norm_y = note.position_y / 1000.0
+        region = getattr(context, "region", None)
+        if region is None:
+            return
 
-            # frame_world order: top-left, top-right, bottom-right, bottom-left
-            # Interpolate in world space (already transformed)
-            top = lerp(frame_world[0], frame_world[1], norm_x)
-            bottom = lerp(frame_world[3], frame_world[2], norm_x)
-            point_world = lerp(bottom, top, norm_y)
+        scene = getattr(context, "scene", None)
+        if scene is None:
+            return
 
-            # Project to region (screen) coordinates
-            coord_2d = location_3d_to_region_2d(region, rv3d, point_world)
-            if coord_2d is None:
-                # point not visible; skip drawing
-                continue
+        camera = getattr(scene, "camera", None)
+        if not camera or camera.type != 'CAMERA':
+            return
 
-            x_pos, y_pos = coord_2d.x, coord_2d.y
+        # Get preferences
+        preferences = get_addon_preferences(context)
+        if preferences is None:
+            return
+
+        # Get camera info
+        camera_data = camera.data
+        camera_name = camera.name
+
+        # Get frame range info for shots
+        props = getattr(scene, "custom_name_props", None)
+        shot_info = None
+
+        # Check if camera is in a shot (timeline marker)
+        for marker in scene.timeline_markers:
+            if marker.camera and marker.camera == camera:
+                marker_index = list(scene.timeline_markers).index(marker)
+                if marker_index < len(scene.timeline_markers) - 1:
+                    next_marker = list(scene.timeline_markers)[marker_index + 1]
+                    end_frame = next_marker.frame
+                else:
+                    end_frame = scene.frame_end
+
+                shot_frames = end_frame - marker.frame
+                shot_info = {
+                    'name': marker.name,
+                    'start': marker.frame,
+                    'end': end_frame,
+                    'frames': shot_frames
+                }
+                break
+
+        # Prepare text information based on user preferences
+        info_parts = []
+
+        # Camera/Shot name
+        if preferences.camera_info_show_name:
+            if shot_info:
+                info_parts.append(f"Shot: {shot_info['name']}")
+            else:
+                info_parts.append(f"Camera: {camera_name}")
+
+        # Frame range (only for shots)
+        if preferences.camera_info_show_frames and shot_info:
+            info_parts.append(f"Frames: {shot_info['start']}-{shot_info['end']} ({shot_info['frames']}f)")
+
+        # Focal Length
+        if preferences.camera_info_show_focal:
+            if camera_data.type == 'ORTHO':
+                info_parts.append(f"Ortho Scale: {camera_data.ortho_scale:.2f}")
+            else:
+                info_parts.append(f"Focal Length: {camera_data.lens:.1f}mm")
+
+        # Focus Distance (if DoF is enabled)
+        if camera_data.dof.use_dof:
+            if preferences.camera_info_show_focus:
+                info_parts.append(f"Focus: {camera_data.dof.focus_distance:.2f}m")
+            if preferences.camera_info_show_fstop:
+                info_parts.append(f"F-Stop: f/{camera_data.dof.aperture_fstop:.1f}")
+
+        # Don't draw if no info to display
+        if not info_parts:
+            return
+
+        # Combine info based on layout preference
+        if preferences.camera_info_single_line:
+            info_lines = [preferences.camera_info_separator.join(info_parts)]
         else:
-            # Fallback: treat as absolute screen coordinates
-            x_pos = note.position_x
-            y_pos = note.position_y
+            info_lines = info_parts
 
-        # Set font size once per note
-        blf.size(font_id, note.font_size)
+        # Draw the text
+        font_id = 0
+        font_color = preferences.camera_info_font_color
+        blf.color(font_id, font_color[0], font_color[1], font_color[2], font_color[3])
+        blf.size(font_id, preferences.camera_info_font_size)
 
-        # Draw background if enabled
-        if note.show_background:
-            text_width, text_height = blf.dimensions(font_id, note.text)
+        rv3d = context.space_data.region_3d
 
-            padding = 8
-            bg_x = x_pos - padding
-            bg_y = y_pos - padding
-            bg_width = text_width + padding * 2
-            bg_height = text_height + padding * 2
+        # Use the sticky camera-frame anchor when sticky mode is enabled, and use the
+        # last visible screen-space position when it is disabled.
+        if preferences.camera_info_sticky_overlay:
+            try:
+                coord_2d = project_camera_frame_point(region, rv3d, camera, _camera_info_sticky_anchor_x, _camera_info_sticky_anchor_y)
+                if coord_2d is not None:
+                    x_offset = coord_2d.x
+                    y_start = coord_2d.y
+                    _camera_info_normal_position_x = x_offset
+                    _camera_info_normal_position_y = y_start
+                else:
+                    x_offset = float(preferences.camera_info_position_x)
+                    y_start = float(preferences.camera_info_position_y)
+            except Exception:
+                x_offset = float(preferences.camera_info_position_x)
+                y_start = float(preferences.camera_info_position_y)
+        else:
+            x_offset = float(preferences.camera_info_position_x)
+            y_start = float(preferences.camera_info_position_y)
+            _camera_info_normal_position_x = x_offset
+            _camera_info_normal_position_y = y_start
 
-            # Create fresh shader for each background to avoid state pollution
-            bg_shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+        line_height = preferences.camera_info_font_size + 6
+
+        # Draw background rectangle
+        try:
+            import gpu
+            from gpu_extras.batch import batch_for_shader
+        except Exception:
+            return
+
+        # Calculate max text width for background
+        max_width = 0
+        for line in info_lines:
+            text_width, text_height = blf.dimensions(font_id, line)
+            if text_width > max_width:
+                max_width = text_width
+
+        # Draw semi-transparent background
+        padding = 10
+        bg_x = x_offset - padding
+        bg_y = y_start - padding
+        bg_width = max_width + padding * 2
+        bg_height = len(info_lines) * line_height + padding * 2
+
+        # Enable proper alpha blending
+        gpu.state.blend_set('ALPHA')
+        try:
+            shader = gpu.shader.from_builtin('UNIFORM_COLOR')
             batch = batch_for_shader(
-                bg_shader, 'TRI_FAN',
+                shader, 'TRI_FAN',
                 {"pos": [
                     (bg_x, bg_y),
                     (bg_x + bg_width, bg_y),
@@ -361,40 +376,191 @@ def draw_camera_notes_overlay():
                 ]},
             )
 
-            # Ensure blend state is correct before drawing
-            gpu.state.blend_set('ALPHA')
-            bg_shader.bind()
-            bg_color = note.background_color
-            bg_shader.uniform_float("color", (bg_color[0], bg_color[1], bg_color[2], bg_color[3]))
-            batch.draw(bg_shader)
-            # Unbind shader after use
-            gpu.shader.unbind()
+            shader.bind()
+            bg_color = preferences.camera_info_background_color
+            shader.uniform_float("color", (bg_color[0], bg_color[1], bg_color[2], bg_color[3]))
+            batch.draw(shader)
+        finally:
+            gpu.state.blend_set('NONE')
 
-        # Draw text immediately after its background
-        blf.color(font_id, note.font_color[0], note.font_color[1], 
-                  note.font_color[2], note.font_color[3])
-        blf.position(font_id, x_pos, y_pos, 0)
-        blf.draw(font_id, note.text)
+        # Draw text lines
+        for i, line in enumerate(info_lines):
+            y_pos = y_start + (len(info_lines) - 1 - i) * line_height
+            blf.position(font_id, x_offset, y_pos, 0)
+            blf.draw(font_id, line)
+    except Exception:
+        return
 
-    # Restore default GPU state
-    gpu.state.blend_set('NONE')
-    gpu.state.depth_test_set('LESS_EQUAL')
+def register_camera_info_overlay():
+    """Register the camera info overlay draw handler."""
+    global _camera_info_draw_handler
+
+    if _camera_info_draw_handler is not None:
+        try:
+            bpy.types.SpaceView3D.draw_handler_remove(_camera_info_draw_handler, 'WINDOW')
+        except Exception:
+            pass
+        _camera_info_draw_handler = None
+
+    _camera_info_draw_handler = bpy.types.SpaceView3D.draw_handler_add(
+        draw_camera_info_overlay, (), 'WINDOW', 'POST_PIXEL'
+    )
+
+
+def unregister_camera_info_overlay():
+    """Unregister the camera info overlay draw handler."""
+    global _camera_info_draw_handler
+
+    if _camera_info_draw_handler is not None:
+        try:
+            bpy.types.SpaceView3D.draw_handler_remove(_camera_info_draw_handler, 'WINDOW')
+        except Exception:
+            pass
+        _camera_info_draw_handler = None
+
+
+def toggle_camera_info_overlay(enable):
+    """Toggle the camera info overlay on or off."""
+    try:
+        if enable:
+            register_camera_info_overlay()
+        else:
+            unregister_camera_info_overlay()
+    except Exception:
+        pass
+
+    _safe_redraw_viewports(bpy.context)
+
+
+def toggle_camera_notes_overlay(enable):
+    """Toggle the camera notes overlay on or off."""
+    try:
+        if enable:
+            register_camera_notes_overlay()
+        else:
+            unregister_camera_notes_overlay()
+    except Exception:
+        pass
+
+    _safe_redraw_viewports(bpy.context)
+
+def draw_camera_notes_overlay():
+    """Draw camera notes overlay in the viewport when in camera view."""
+    try:
+        context = bpy.context
+
+        # Check if we're in camera view
+        if not context or not getattr(context, "space_data", None) or context.space_data.type != 'VIEW_3D':
+            return
+
+        region_3d = getattr(context.space_data, "region_3d", None)
+        if not region_3d or region_3d.view_perspective != 'CAMERA':
+            return
+
+        region = getattr(context, "region", None)
+        if region is None:
+            return
+
+        scene = getattr(context, "scene", None)
+        if scene is None:
+            return
+
+        camera = getattr(scene, "camera", None)
+        if not camera or camera.type != 'CAMERA':
+            return
+
+        # Get notes for this camera
+        camera_notes = [note for note in scene.camera_notes if note.camera_name == camera.name and note.enabled]
+
+        if not camera_notes:
+            return
+
+        rv3d = context.space_data.region_3d
+        font_id = 0
+
+        try:
+            import gpu
+            from gpu_extras.batch import batch_for_shader
+        except Exception:
+            return
+
+        # Set up proper GPU state for 2D overlay rendering
+        gpu.state.blend_set('ALPHA')
+        gpu.state.depth_test_set('NONE')
+
+        try:
+            # Draw each note (background + text)
+            for note in camera_notes:
+                coord_2d = project_camera_frame_point(region, rv3d, camera, note.position_x / 1000.0, note.position_y / 1000.0)
+                if coord_2d is not None:
+                    x_pos, y_pos = coord_2d.x, coord_2d.y
+                else:
+                    x_pos = note.position_x
+                    y_pos = note.position_y
+
+                blf.size(font_id, note.font_size)
+
+                if note.show_background:
+                    text_width, text_height = blf.dimensions(font_id, note.text)
+
+                    padding = 8
+                    bg_x = x_pos - padding
+                    bg_y = y_pos - padding
+                    bg_width = text_width + padding * 2
+                    bg_height = text_height + padding * 2
+
+                    bg_shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+                    batch = batch_for_shader(
+                        bg_shader, 'TRI_FAN',
+                        {"pos": [
+                            (bg_x, bg_y),
+                            (bg_x + bg_width, bg_y),
+                            (bg_x + bg_width, bg_y + bg_height),
+                            (bg_x, bg_y + bg_height)
+                        ]},
+                    )
+
+                    gpu.state.blend_set('ALPHA')
+                    bg_shader.bind()
+                    bg_color = note.background_color
+                    bg_shader.uniform_float("color", (bg_color[0], bg_color[1], bg_color[2], bg_color[3]))
+                    batch.draw(bg_shader)
+                    gpu.shader.unbind()
+
+                blf.color(font_id, note.font_color[0], note.font_color[1], note.font_color[2], note.font_color[3])
+                blf.position(font_id, x_pos, y_pos, 0)
+                blf.draw(font_id, note.text)
+        finally:
+            gpu.state.blend_set('NONE')
+            gpu.state.depth_test_set('LESS_EQUAL')
+    except Exception:
+        return
 
 def register_camera_notes_overlay():
     """Register the camera notes overlay draw handler."""
     global _camera_notes_draw_handler
-    
-    if _camera_notes_draw_handler is None:
-        _camera_notes_draw_handler = bpy.types.SpaceView3D.draw_handler_add(
-            draw_camera_notes_overlay, (), 'WINDOW', 'POST_PIXEL'
-        )
+
+    if _camera_notes_draw_handler is not None:
+        try:
+            bpy.types.SpaceView3D.draw_handler_remove(_camera_notes_draw_handler, 'WINDOW')
+        except Exception:
+            pass
+        _camera_notes_draw_handler = None
+
+    _camera_notes_draw_handler = bpy.types.SpaceView3D.draw_handler_add(
+        draw_camera_notes_overlay, (), 'WINDOW', 'POST_PIXEL'
+    )
+
 
 def unregister_camera_notes_overlay():
     """Unregister the camera notes overlay draw handler."""
     global _camera_notes_draw_handler
-    
+
     if _camera_notes_draw_handler is not None:
-        bpy.types.SpaceView3D.draw_handler_remove(_camera_notes_draw_handler, 'WINDOW')
+        try:
+            bpy.types.SpaceView3D.draw_handler_remove(_camera_notes_draw_handler, 'WINDOW')
+        except Exception:
+            pass
         _camera_notes_draw_handler = None
 
 class FavoriteCameraItem(PropertyGroup):
@@ -416,14 +582,14 @@ class CameraNoteItem(PropertyGroup):
         name="Position X",
         description="Horizontal position in pixels from left edge of camera view",
         default=100,
-        soft_min=-2000,
+        soft_min=-4000,
         soft_max=4000
     )
     position_y: IntProperty(
         name="Position Y",
         description="Vertical position in pixels from bottom edge of camera view",
         default=100,
-        soft_min=-2000,
+        soft_min=-4000,
         soft_max=4000
     )
     font_size: IntProperty(
@@ -2094,6 +2260,8 @@ class OBJECT_OT_add_camera_note(OBJECT_OT_BaseOperator):
         note = scene.camera_notes.add()
         note.camera_name = self.camera_name
         note.text = f"Note {len(scene.camera_notes)}"
+        note.position_x = 500
+        note.position_y = 500
         scene.active_note_index = len(scene.camera_notes) - 1
         
         # Force viewport redraw
@@ -2494,6 +2662,7 @@ class OBJECT_OT_adjust_fstop(Operator):
             # Ensure handler is removed on error
             if hasattr(self, '_handle'):
                 bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
+            self.camera.data.dof.use_dof = self.initial_use_dof
             self.report({'ERROR'}, f"Error in modal operator: {str(e)}")
             return {'CANCELLED'}
 
@@ -2501,6 +2670,7 @@ class OBJECT_OT_adjust_fstop(Operator):
         self.camera = context.scene.camera or context.view_layer.objects.active
         if self.camera and self.camera.type == 'CAMERA':
             self.initial_fstop = self.camera.data.dof.aperture_fstop
+            self.initial_use_dof = self.camera.data.dof.use_dof
             self.camera.data.dof.use_dof = True  # Enable DoF
             self.display_text = f"F-Stop: f/{self.initial_fstop:.1f}"
             args = (self, context)
@@ -2600,6 +2770,11 @@ class OBJECT_OT_dof_picker(Operator):
     bl_idname = "object.dof_picker"
     bl_label = "DoF Picker"
 
+    def _restore_dof_state(self):
+        self.camera.data.dof.focus_distance = self.initial_focus
+        self.camera.data.dof.use_dof = self.initial_use_dof
+        self.camera.data.dof.focus_object = self.initial_focus_object
+
     def modal(self, context, event):
         try:
             context.area.tag_redraw()
@@ -2614,7 +2789,7 @@ class OBJECT_OT_dof_picker(Operator):
                 return {'FINISHED'}
             elif event.type in {'RIGHTMOUSE', 'ESC'}:
                 context.window.cursor_modal_restore()
-                self.camera.data.dof.focus_distance = self.initial_focus
+                self._restore_dof_state()
                 if hasattr(self, '_handle'):
                     bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
                 return {'CANCELLED'}
@@ -2625,6 +2800,7 @@ class OBJECT_OT_dof_picker(Operator):
             context.window.cursor_modal_restore()
             if hasattr(self, '_handle'):
                 bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
+            self._restore_dof_state()
             self.report({'ERROR'}, f"Error in modal operator: {str(e)}")
             return {'CANCELLED'}
 
@@ -2636,7 +2812,11 @@ class OBJECT_OT_dof_picker(Operator):
         self.camera = context.scene.camera or context.view_layer.objects.active
         if self.camera and self.camera.type == 'CAMERA':
             self.initial_focus = self.camera.data.dof.focus_distance
+            self.initial_use_dof = self.camera.data.dof.use_dof
+            self.initial_focus_object = self.camera.data.dof.focus_object
             self.camera.data.dof.use_dof = True  # Enable DoF
+            if self.initial_focus_object is not None:
+                self.camera.data.dof.focus_object = None
             context.window.cursor_modal_set('EYEDROPPER')
             self.mouse_pos = Vector((event.mouse_region_x, event.mouse_region_y))
             self.display_text = f"DoF Distance: {self.initial_focus:.2f}m"
@@ -2691,6 +2871,7 @@ class OBJECT_OT_dof_focus_object_picker(Operator):
                 context.window.cursor_modal_restore()
                 context.area.header_text_set(None)
                 self.camera.data.dof.focus_object = self.initial_focus_object
+                self.camera.data.dof.use_dof = self.initial_use_dof
                 if hasattr(self, '_handle'):
                     bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
                 return {'CANCELLED'}
@@ -2700,8 +2881,10 @@ class OBJECT_OT_dof_focus_object_picker(Operator):
             # Ensure handler is removed on error
             context.window.cursor_modal_restore()
             context.area.header_text_set(None)
+            self.restore_selection(context)
             if hasattr(self, '_handle'):
                 bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
+            self.camera.data.dof.use_dof = self.initial_use_dof
             self.report({'ERROR'}, f"Error in modal operator: {str(e)}")
             return {'CANCELLED'}
 
@@ -2713,6 +2896,7 @@ class OBJECT_OT_dof_focus_object_picker(Operator):
         self.camera = context.scene.camera or context.view_layer.objects.active
         if self.camera and self.camera.type == 'CAMERA':
             self.initial_focus_object = self.camera.data.dof.focus_object
+            self.initial_use_dof = self.camera.data.dof.use_dof
             self.camera.data.dof.use_dof = True  # Enable DoF
             context.window.cursor_modal_set('EYEDROPPER')
             self.mouse_pos = Vector((event.mouse_region_x, event.mouse_region_y))
@@ -2733,14 +2917,14 @@ class OBJECT_OT_dof_focus_object_picker(Operator):
         ray_origin = region_2d_to_origin_3d(region, rv3d, coord)
 
         result, location, normal, index, object, matrix = context.scene.ray_cast(context.view_layer.depsgraph, ray_origin, view_vector)
-
-        if result:
+        if result and object is not None:
             self.camera.data.dof.focus_object = object
             self.current_object = object
             context.area.header_text_set(f"Focus Object: {object.name}")
-        else:
-            self.current_object = None
-            context.area.header_text_set("No object under cursor")
+            return
+
+        self.current_object = None
+        context.area.header_text_set("No object under cursor")
 
     def draw_callback_px(self, op, context):
         if self.current_object:
@@ -2757,8 +2941,10 @@ class OBJECT_OT_set_dof_object(Operator):
     def execute(self, context):
         camera = context.scene.camera or context.view_layer.objects.active
         if camera and camera.type == 'CAMERA':
-            camera.data.dof.use_dof = True  # Enable DoF
-        return bpy.ops.object.dof_focus_object_picker('INVOKE_DEFAULT')
+            return bpy.ops.object.dof_focus_object_picker('INVOKE_DEFAULT')
+
+        self.report({'WARNING'}, "No active camera")
+        return {'CANCELLED'}
 
 class OBJECT_OT_remove_dof_object(Operator):
     bl_idname = "object.remove_dof_object"
@@ -2769,7 +2955,8 @@ class OBJECT_OT_remove_dof_object(Operator):
         camera = context.scene.camera or context.view_layer.objects.active
         if camera and camera.type == 'CAMERA':
             camera.data.dof.focus_object = None
-            self.report({'INFO'}, "Removed DoF focus object")
+            camera.data.dof.use_dof = False
+            self.report({'INFO'}, "Removed DoF focus object and disabled DoF")
         else:
             self.report({'WARNING'}, "No active camera")
         return {'FINISHED'}
@@ -2789,6 +2976,7 @@ class OBJECT_OT_create_empty_focus(Operator):
                     bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
                 return {'FINISHED'}
             elif event.type in {'RIGHTMOUSE', 'ESC'}:
+                self.camera.data.dof.use_dof = self.initial_use_dof
                 if hasattr(self, '_handle'):
                     bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
                 return {'CANCELLED'}
@@ -2798,6 +2986,7 @@ class OBJECT_OT_create_empty_focus(Operator):
             # Ensure handler is removed on error
             if hasattr(self, '_handle'):
                 bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
+            self.camera.data.dof.use_dof = self.initial_use_dof
             self.report({'ERROR'}, f"Error in modal operator: {str(e)}")
             return {'CANCELLED'}
 
@@ -2811,6 +3000,7 @@ class OBJECT_OT_create_empty_focus(Operator):
             self.report({'WARNING'}, "No active camera")
             return {'CANCELLED'}
 
+        self.initial_use_dof = self.camera.data.dof.use_dof
         args = (self, context)
         self._handle = bpy.types.SpaceView3D.draw_handler_add(self.draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
 

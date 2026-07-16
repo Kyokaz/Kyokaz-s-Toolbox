@@ -387,6 +387,7 @@ class OBJECT_PT_CameraInfoOverlay(Panel):
             col = box.column(align=True)
             col.prop(preferences, "camera_info_position_x", text="X Position")
             col.prop(preferences, "camera_info_position_y", text="Y Position")
+            col.prop(preferences, "camera_info_sticky_overlay")
             col.prop(preferences, "camera_info_font_size", text="Font Size")
             col.prop(preferences, "camera_info_font_color", text="Font Color")
             col.prop(preferences, "camera_info_background_color", text="Background")
@@ -910,7 +911,7 @@ class KYOKAZ_PT_ToolboxScenePanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="Kyokaz's Toolbox version 2.6.4", icon="INFO")
+        layout.label(text="Kyokaz's Toolbox version 2.6.5", icon="INFO")
 
 class KYOKAZ_PT_RenderToolsScenePanel(bpy.types.Panel):
     bl_label = "Render Tools"

@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "KyokazToolbox"
-version = "2.7.0"
+version = "2.6.5"
 name = "Kyokaz's Toolbox"
 tagline = "Set of useful camera, animation and rendering tools for Blender"
 maintainer = "Kyokaz <faizkyokaz@gmail.com>"
