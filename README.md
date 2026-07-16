@@ -44,20 +44,20 @@ Set a favorite up to 8 cameras that can be accessed through the pie menu.
 ## Notes/Annotation Overlay
 ![blender_qnxi0X80ac (2)](https://github.com/user-attachments/assets/a4c92a6e-69aa-4db4-9b9a-0e7216cfefda)
 
-Added a feature to add notes or annotations on camera/shot with the option to change font & background color and size.
+Add notes or annotations on camera/shot with the option to change font & background color and size.
 (Scroll to change scale, shift+scroll to change font color,  and ctrl+scroll to change background opacity)
 
 ![blender_ksESpK2tdG (2)](https://github.com/user-attachments/assets/e59c41e1-5b61-4ac9-aaff-33979574e4ca)
 
-Added a toggleable camera Info overlay 
+Toggleable camera Info overlay 
 
 # Animation Tools
 ![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/a5fdacc8-5380-400b-986b-53476bb34082)
 
 ### Toggle Default Interpolation
-Allows users to toggle the default interpolation between Constant and Bezier without going into the preference settings.
+Toggle the default interpolation between Constant and Bezier without going into the preference settings.
 ### Bake Per Steps
-Allows the user to quickly Bake selected keyframe range with custom steps using [_bpy.ops.nla.bak_](https://docs.blender.org/api/current/bpy.ops.nla.html#bpy.ops.nla.bake) operator.
+Quickly Bake selected keyframe range with custom steps using [_bpy.ops.nla.bak_](https://docs.blender.org/api/current/bpy.ops.nla.html#bpy.ops.nla.bake) operator.
 ### Add Per Steps
 Similar to Bake Per Steps, this one only adds keyframe(s) instead of replacing them.
 ### Delete Per Steps
@@ -68,7 +68,7 @@ Deletes keyframe with custom steps.
 ![blender_gOaPnGPe4O](https://github.com/user-attachments/assets/12a2396e-86f2-4319-831d-34de4bb2b671)
 
 ### Disable Render for Hidden Objects:
-Automatically disables rendering for all hidden objects in the viewport in case you forgot to disable them manually for a render. Excluded Collection is added to prevent specific objects from being applied.
+Automatically disables rendering for all hidden objects in the viewport in case you forgot to disable them manually for a render. Excluded Collection is added to prevent specific objects from being applied. (Might be buggy, still need to fix some stuff)
 
 ### Render Preset
 ![image](https://github.com/user-attachments/assets/49d3eaa8-5107-4a30-8f8e-76afc1154c82)
@@ -87,8 +87,8 @@ Viewport Render Animation is more accessible now with the option to turn on a cu
 3. Select the Python file and enable the add-on
 
 # How to Use
-Most of the toolset can be found in the side panel or in Scene Properties, anything animation related can be found in animation related panel (Timeline, Dope Sheet, Graph Editor)
-Quick Camera and Render Tools can be found in the Toolbox Panel (Can be turned off) or in Scene Properties.
+Most of the toolset can be found in the side panel or in Scene Properties. 
+Anything animation related can be found in animation related panel (Timeline, Dope Sheet, Graph Editor)
 
 To change keybind or default camera settings, go to Addon Preferences.
 
