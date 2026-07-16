@@ -1,5 +1,5 @@
 # Kyokaz's Toolbox
-A set of animation tools for Blender, originally made for my own animation project, and decided to share them here.
+A set of animation tools for Blender, originally made for my own personal animation project.
 
 Quick Overview Video:
 https://www.youtube.com/watch?v=Ig7vOTFnr5c
@@ -81,19 +81,16 @@ Easily create your own preset for render settings, and import and export them as
 
 Viewport Render Animation is more accessible now with the option to turn on a customizable timecode and the ability to preview the video after render.
 
-**Current known issue:**
-- Hidden collection will not be applied if the objects inside still have their viewport render turned on (Working on fixing this).
-- Hidden objects inside another collection in the excluded collection might not work properly, resulting in hidden objects inside the custom collection still being applied even though they're in the excluded collection. To temporarily prevent this, disable the viewport render for the collection instead of the objects inside it.
-
 # How to Install
 1. Download the [latest release](https://github.com/Kyokaz/toggle_default_interpolation/releases) 
 2. In Blender, go to Edit > Preferences > Add-ons > Install
 3. Select the Python file and enable the add-on
 
 # How to Use
-The toggle button should appear on the side panel (N-Panel) in Timeline Editor, Action Editor, Graph Editor, Dope Sheet Editor, and Viewport Editor 'Toolbox' Panel.
-Animation Tools can be found in animation-related quick panels (Timeline Editor, Action Editor, Graph Editor, Dope Sheet Editor).
-Quick Camera and Render Tools can be found in the Toolbox Panel (Can be turned off) or in Scene Properties. 
+Most of the toolset can be found in the side panel or in Scene Properties, anything animation related can be found in animation related panel (Timeline, Dope Sheet, Graph Editor)
+Quick Camera and Render Tools can be found in the Toolbox Panel (Can be turned off) or in Scene Properties.
+
+To change keybind or default camera settings, go to Addon Preferences.
 
 ## Disclaimer
-This code was written with the assistance of Claude.AI. I'm not fully familiar with Python coding yet, as I'm still learning, so if you have any suggestions on how to make this better, please let me know!
+This code was written with the assistance of Claude as I mostly handle a lot of the UI stuff. I'm not fully familiar with Python coding yet, as I'm still learning, so if you have any suggestions on how to make this better, please let me know!
