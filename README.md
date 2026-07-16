@@ -1,5 +1,5 @@
 # Kyokaz's Toolbox
-A set of animation tools for Blender, originally made for my own animation project, and decided to share them here.
+A set of animation tools for Blender, originally made for my own personal animation project.
 
 Quick Overview Video:
 https://www.youtube.com/watch?v=Ig7vOTFnr5c
@@ -44,20 +44,20 @@ Set a favorite up to 8 cameras that can be accessed through the pie menu.
 ## Notes/Annotation Overlay
 ![blender_qnxi0X80ac (2)](https://github.com/user-attachments/assets/a4c92a6e-69aa-4db4-9b9a-0e7216cfefda)
 
-Added a feature to add notes or annotations on camera/shot with the option to change font & background color and size.
+Add notes or annotations on camera/shot with the option to change font & background color and size.
 (Scroll to change scale, shift+scroll to change font color,  and ctrl+scroll to change background opacity)
 
 ![blender_ksESpK2tdG (2)](https://github.com/user-attachments/assets/e59c41e1-5b61-4ac9-aaff-33979574e4ca)
 
-Added a toggleable camera Info overlay 
+Toggleable camera Info overlay 
 
 # Animation Tools
 ![image](https://github.com/Kyokaz/Kyokaz-s-Toolbox/assets/84836314/a5fdacc8-5380-400b-986b-53476bb34082)
 
 ### Toggle Default Interpolation
-Allows users to toggle the default interpolation between Constant and Bezier without going into the preference settings.
+Toggle the default interpolation between Constant and Bezier without going into the preference settings.
 ### Bake Per Steps
-Allows the user to quickly Bake selected keyframe range with custom steps using [_bpy.ops.nla.bak_](https://docs.blender.org/api/current/bpy.ops.nla.html#bpy.ops.nla.bake) operator.
+Quickly Bake selected keyframe range with custom steps using [_bpy.ops.nla.bak_](https://docs.blender.org/api/current/bpy.ops.nla.html#bpy.ops.nla.bake) operator.
 ### Add Per Steps
 Similar to Bake Per Steps, this one only adds keyframe(s) instead of replacing them.
 ### Delete Per Steps
@@ -68,7 +68,7 @@ Deletes keyframe with custom steps.
 ![blender_gOaPnGPe4O](https://github.com/user-attachments/assets/12a2396e-86f2-4319-831d-34de4bb2b671)
 
 ### Disable Render for Hidden Objects:
-Automatically disables rendering for all hidden objects in the viewport in case you forgot to disable them manually for a render. Excluded Collection is added to prevent specific objects from being applied.
+Automatically disables rendering for all hidden objects in the viewport in case you forgot to disable them manually for a render. Excluded Collection is added to prevent specific objects from being applied. (Might be buggy, still need to fix some stuff)
 
 ### Render Preset
 ![image](https://github.com/user-attachments/assets/49d3eaa8-5107-4a30-8f8e-76afc1154c82)
@@ -81,19 +81,16 @@ Easily create your own preset for render settings, and import and export them as
 
 Viewport Render Animation is more accessible now with the option to turn on a customizable timecode and the ability to preview the video after render.
 
-**Current known issue:**
-- Hidden collection will not be applied if the objects inside still have their viewport render turned on (Working on fixing this).
-- Hidden objects inside another collection in the excluded collection might not work properly, resulting in hidden objects inside the custom collection still being applied even though they're in the excluded collection. To temporarily prevent this, disable the viewport render for the collection instead of the objects inside it.
-
 # How to Install
 1. Download the [latest release](https://github.com/Kyokaz/toggle_default_interpolation/releases) 
 2. In Blender, go to Edit > Preferences > Add-ons > Install
 3. Select the Python file and enable the add-on
 
 # How to Use
-The toggle button should appear on the side panel (N-Panel) in Timeline Editor, Action Editor, Graph Editor, Dope Sheet Editor, and Viewport Editor 'Toolbox' Panel.
-Animation Tools can be found in animation-related quick panels (Timeline Editor, Action Editor, Graph Editor, Dope Sheet Editor).
-Quick Camera and Render Tools can be found in the Toolbox Panel (Can be turned off) or in Scene Properties. 
+Most of the toolset can be found in the side panel or in Scene Properties. 
+Anything animation related can be found in animation related panel (Timeline, Dope Sheet, Graph Editor)
+
+To change keybind or default camera settings, go to Addon Preferences.
 
 ## Disclaimer
-This code was written with the assistance of Claude.AI. I'm not fully familiar with Python coding yet, as I'm still learning, so if you have any suggestions on how to make this better, please let me know!
+This code was written with the assistance of Claude as I mostly handle a lot of the UI stuff. I'm not fully familiar with Python coding yet, as I'm still learning, so if you have any suggestions on how to make this better, please let me know!
