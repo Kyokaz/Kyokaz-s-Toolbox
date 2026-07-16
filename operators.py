@@ -1,11 +1,12 @@
 import bpy
 import blf
 import gpu
+import logging
 from gpu_extras.batch import batch_for_shader
 from bpy.types import Operator, PropertyGroup, Menu, UIList
 from bpy.props import IntProperty, BoolProperty, EnumProperty, FloatVectorProperty, StringProperty, PointerProperty, FloatProperty, CollectionProperty
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d, region_2d_to_vector_3d, location_3d_to_region_2d
-from .utils import ensure_output_directory, generate_output_filename, report_error, get_active_collection
+from .utils import ensure_output_directory, generate_output_filename, report_error, get_active_collection, get_addon_preferences
 from mathutils import Vector
 import os
 import subprocess
@@ -100,9 +101,8 @@ def draw_camera_info_overlay():
         return
     
     # Get preferences
-    try:
-        preferences = context.preferences.addons[__package__].preferences
-    except (KeyError, AttributeError):
+    preferences = get_addon_preferences(context)
+    if preferences is None:
         return
     
     # Get camera info
@@ -792,6 +792,13 @@ def is_in_exclude_hidden(obj):
     return obj.hide_render or (exclude_hidden_collection and exclude_hidden_collection in obj.users_collection)
 
 class RenderToolsSettings(PropertyGroup):
+    output_directory: StringProperty(
+        name="Output Directory",
+        description="Directory used for playblast and snapshot output",
+        subtype='DIR_PATH',
+        default=""
+    )
+
     affect_children: BoolProperty(
         name="Affect Children",
         default=False,
@@ -991,52 +998,6 @@ class CustomNameProperties(PropertyGroup):
         self.camera_collection = collection
         self.shot_list_collection = collection
         self.camera_list_collection = collection
-        
-    default_passepartout: FloatProperty(
-        name="Passepartout",
-        description="Default passepartout alpha for new cameras",
-        default=0.5,
-        min=0.0,
-        max=1.0
-    )
-    default_type: EnumProperty(
-        name="Camera Type",
-        items=[
-            ('PERSP', "Perspective", "Perspective camera"),
-            ('ORTHO', "Orthographic", "Orthographic camera"),
-            ('PANO', "Panoramic", "Panoramic camera")
-        ],
-        default='PERSP'
-    )
-    default_clip_start: FloatProperty(
-        name="Clip Start",
-        description="Default clip start for new cameras",
-        default=0.1,
-        min=0.01,
-        max=1000.0
-    )
-    default_clip_end: FloatProperty(
-        name="Clip End",
-        description="Default clip end for new cameras",
-        default=1000.0,
-        min=1.0,
-        max=10000.0
-    )
-
-    default_lens: FloatProperty(
-        name="Focal Length",
-        description="Default focal length for new perspective cameras",
-        default=50.0,
-        min=1.0,
-        max=5000.0
-    )
-    default_ortho_scale: FloatProperty(
-        name="Ortho Scale",
-        description="Default orthographic scale for new orthographic cameras",
-        default=6.0,
-        min=0.01,
-        max=1000.0
-    )
 
 
 class OBJECT_OT_ApplyPassepartoutToAllCameras(Operator):
@@ -1046,8 +1007,12 @@ class OBJECT_OT_ApplyPassepartoutToAllCameras(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        props = context.scene.custom_name_props
-        passepartout_value = props.default_passepartout
+        preferences = get_addon_preferences(context)
+        if preferences is None:
+            self.report({'ERROR'}, "Addon preferences are not available")
+            return {'CANCELLED'}
+
+        passepartout_value = preferences.default_passepartout
         
         # Count cameras that will be affected
         camera_count = 0
@@ -1071,9 +1036,13 @@ class OBJECT_OT_ApplyClippingToAllCameras(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        props = context.scene.custom_name_props
-        clip_start = props.default_clip_start
-        clip_end = props.default_clip_end
+        preferences = get_addon_preferences(context)
+        if preferences is None:
+            self.report({'ERROR'}, "Addon preferences are not available")
+            return {'CANCELLED'}
+
+        clip_start = preferences.default_clip_start
+        clip_end = preferences.default_clip_end
         
         # Count cameras that will be affected
         camera_count = 0
@@ -1100,26 +1069,24 @@ class OBJECT_OT_TogglePanelVisibility(Operator):
     panel_name: StringProperty()
     
     def execute(self, context):
-        try:
-            preferences = context.preferences.addons[__package__].preferences
-            
-            if self.panel_name == "render_tools":
-                preferences.show_render_tools_n_panel = not preferences.show_render_tools_n_panel
-            elif self.panel_name == "shot_list":
-                preferences.show_shot_list_n_panel = not preferences.show_shot_list_n_panel
-            elif self.panel_name == "camera_list":
-                preferences.show_camera_list_n_panel = not preferences.show_camera_list_n_panel
-            elif self.panel_name == "camera_info_overlay":
-                preferences.show_camera_info_overlay_n_panel = not preferences.show_camera_info_overlay_n_panel
-            
-            # Force UI refresh
-            for area in context.screen.areas:
-                if area.type in {'VIEW_3D', 'PROPERTIES'}:
-                    area.tag_redraw()
-            
-        except (KeyError, AttributeError) as e:
-            self.report({'ERROR'}, f"Failed to toggle panel: {str(e)}")
+        preferences = get_addon_preferences(context)
+        if preferences is None:
+            self.report({'ERROR'}, "Failed to toggle panel: addon preferences not available")
             return {'CANCELLED'}
+
+        if self.panel_name == "render_tools":
+            preferences.show_render_tools_n_panel = not preferences.show_render_tools_n_panel
+        elif self.panel_name == "shot_list":
+            preferences.show_shot_list_n_panel = not preferences.show_shot_list_n_panel
+        elif self.panel_name == "camera_list":
+            preferences.show_camera_list_n_panel = not preferences.show_camera_list_n_panel
+        elif self.panel_name == "camera_info_overlay":
+            preferences.show_camera_info_overlay_n_panel = not preferences.show_camera_info_overlay_n_panel
+
+        # Force UI refresh
+        for area in context.screen.areas:
+            if area.type in {'VIEW_3D', 'PROPERTIES'}:
+                area.tag_redraw()
         
         return {'FINISHED'}
 
@@ -1164,17 +1131,20 @@ class AddCameraButton(OBJECT_OT_BaseOperator):
         camera_base_name = props.camera_name or "Camera"
         camera_count = sum(1 for obj in active_collection.objects if obj.type == 'CAMERA')
 
+        preferences = get_addon_preferences(context)
+
         new_camera_data = bpy.data.cameras.new(name=f"{camera_base_name} {camera_count + 1}")
         new_camera = bpy.data.objects.new(name=f"{camera_base_name} {camera_count + 1}", object_data=new_camera_data)
 
-        new_camera_data.type = props.default_type
-        new_camera_data.passepartout_alpha = props.default_passepartout
-        new_camera_data.clip_start = props.default_clip_start
-        new_camera_data.clip_end = props.default_clip_end
-        if new_camera_data.type == 'ORTHO':
-            new_camera_data.ortho_scale = props.default_ortho_scale
-        else:
-            new_camera_data.lens = props.default_lens
+        if preferences is not None:
+            new_camera_data.type = preferences.default_type
+            new_camera_data.passepartout_alpha = preferences.default_passepartout
+            new_camera_data.clip_start = preferences.default_clip_start
+            new_camera_data.clip_end = preferences.default_clip_end
+            if new_camera_data.type == 'ORTHO':
+                new_camera_data.ortho_scale = preferences.default_ortho_scale
+            else:
+                new_camera_data.lens = preferences.default_lens
 
         # Get the view matrix and apply it to the camera
         view_matrix = get_view_matrix_from_context(context)
@@ -1208,19 +1178,24 @@ class AddCameraWithMarkerButton(OBJECT_OT_BaseOperator):
         shot_count = sum(1 for obj in camera_objs
                         if any(marker.camera == obj for marker in scene.timeline_markers))
 
+        preferences = get_addon_preferences(context)
+        if preferences is None:
+            self.report({'ERROR'}, "Addon preferences are not available")
+            return {'CANCELLED'}
+
         camera_name = f"{shot_base_name} {shot_count + 1}"
         marker_name = camera_name
         new_camera = bpy.data.cameras.new(name=camera_name)
         camera_object = bpy.data.objects.new(name=camera_name, object_data=new_camera)
 
-        new_camera.type = props.default_type
-        new_camera.passepartout_alpha = props.default_passepartout
-        new_camera.clip_start = props.default_clip_start
-        new_camera.clip_end = props.default_clip_end
+        new_camera.type = preferences.default_type
+        new_camera.passepartout_alpha = preferences.default_passepartout
+        new_camera.clip_start = preferences.default_clip_start
+        new_camera.clip_end = preferences.default_clip_end
         if new_camera.type == 'ORTHO':
-            new_camera.ortho_scale = props.default_ortho_scale
+            new_camera.ortho_scale = preferences.default_ortho_scale
         else:
-            new_camera.lens = props.default_lens
+            new_camera.lens = preferences.default_lens
 
         # Get the view matrix and apply it to the camera
         view_matrix = get_view_matrix_from_context(context)
@@ -1245,6 +1220,7 @@ class AddCameraCopyPropertiesButton(OBJECT_OT_BaseOperator):
     def execute(self, context):
         scene = context.scene
         props = scene.custom_name_props
+
         active_collection = get_active_collection(context, self)
         if not active_collection:
             active_collection = bpy.data.collections.new("Cameras")
@@ -1284,6 +1260,7 @@ class AddCameraShotCopyPropertiesButton(OBJECT_OT_BaseOperator):
     def execute(self, context):
         scene = context.scene
         props = scene.custom_name_props
+
         active_collection = get_active_collection(context, self)
         if not active_collection:
             active_collection = bpy.data.collections.new("Cameras")
@@ -1726,16 +1703,15 @@ class OBJECT_OT_toggle_camera_info_overlay(OBJECT_OT_BaseOperator):
     bl_description = "Toggle camera information overlay in viewport"
 
     def execute(self, context):
-        try:
-            preferences = context.preferences.addons[__package__].preferences
-            preferences.show_camera_info_overlay = not preferences.show_camera_info_overlay
-            
-            status = "enabled" if preferences.show_camera_info_overlay else "disabled"
-            self.report({'INFO'}, f"Camera info overlay {status}")
-            return {'FINISHED'}
-        except (KeyError, AttributeError):
+        preferences = get_addon_preferences(context)
+        if preferences is None:
             self.report({'WARNING'}, "Could not access addon preferences")
             return {'CANCELLED'}
+
+        preferences.show_camera_info_overlay = not preferences.show_camera_info_overlay
+        status = "enabled" if preferences.show_camera_info_overlay else "disabled"
+        self.report({'INFO'}, f"Camera info overlay {status}")
+        return {'FINISHED'}
 
 class OBJECT_OT_toggle_camera_notes_overlay(OBJECT_OT_BaseOperator):
     bl_idname = "object.toggle_camera_notes_overlay"
@@ -1743,16 +1719,15 @@ class OBJECT_OT_toggle_camera_notes_overlay(OBJECT_OT_BaseOperator):
     bl_description = "Toggle camera notes overlay in viewport"
 
     def execute(self, context):
-        try:
-            preferences = context.preferences.addons[__package__].preferences
-            preferences.show_camera_notes = not preferences.show_camera_notes
-            
-            status = "shown" if preferences.show_camera_notes else "hidden"
-            self.report({'INFO'}, f"Camera notes {status}")
-            return {'FINISHED'}
-        except (KeyError, AttributeError):
+        preferences = get_addon_preferences(context)
+        if preferences is None:
             self.report({'WARNING'}, "Could not access addon preferences")
             return {'CANCELLED'}
+
+        preferences.show_camera_notes = not preferences.show_camera_notes
+        status = "shown" if preferences.show_camera_notes else "hidden"
+        self.report({'INFO'}, f"Camera notes {status}")
+        return {'FINISHED'}
 
 # Global variables for interactive note placement
 _note_placement_handler = None
@@ -2208,15 +2183,30 @@ class VIEW3D_MT_PIE_QuickCamera(Menu):
         
         # Toggle Notes overlay (only show when in camera view)
         if in_camera_view:
-            try:
-                preferences = context.preferences.addons[__package__].preferences
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                pie.separator()
+            else:
                 icon = 'HIDE_OFF' if preferences.show_camera_notes else 'HIDE_ON'
                 text = "Hide Notes" if preferences.show_camera_notes else "Show Notes"
                 pie.operator("object.toggle_camera_notes_overlay", text=text, icon=icon)
-            except (KeyError, AttributeError):
-                pie.separator()
         else:
             pie.separator()
+
+        # Adjust passepartout of the active camera (drag to change)
+        if active_camera and active_camera.type == 'CAMERA':
+            pie.operator("object.adjust_passepartout", text="Passepartout", icon='CAMERA_DATA')
+        else:
+            pie.separator()
+
+        # Toggle Camera Info Overlay
+        preferences = get_addon_preferences(context)
+        if preferences is None:
+            pie.separator()
+        else:
+            icon = 'HIDE_OFF' if preferences.show_camera_info_overlay else 'HIDE_ON'
+            text = "Hide Camera Info" if preferences.show_camera_info_overlay else "Show Camera Info"
+            pie.operator("object.toggle_camera_info_overlay", text=text, icon=icon)
 
 class SCENE_OT_SetActiveCamera(OBJECT_OT_BaseOperator):
     bl_idname = "scene.set_active_camera"
@@ -2320,13 +2310,19 @@ class WM_OT_capture_keymap(bpy.types.Operator):
     pie_menu: bpy.props.StringProperty()
 
     def execute(self, context):
-        addon_prefs = context.preferences.addons[__package__].preferences
+        addon_prefs = get_addon_preferences(context)
+        if addon_prefs is None:
+            self.report({'ERROR'}, "Addon preferences not available")
+            return {'CANCELLED'}
         addon_prefs.capture_key = True
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
-        addon_prefs = context.preferences.addons[__package__].preferences
+        addon_prefs = get_addon_preferences(context)
+        if addon_prefs is None:
+            self.report({'ERROR'}, "Addon preferences not available")
+            return {'CANCELLED'}
         if event.type == 'TIMER':
             return {'PASS_THROUGH'}
 
@@ -2364,7 +2360,10 @@ class WM_OT_remove_keymap(bpy.types.Operator):
     pie_menu: bpy.props.StringProperty()
 
     def execute(self, context):
-        addon_prefs = context.preferences.addons[__package__].preferences
+        addon_prefs = get_addon_preferences(context)
+        if addon_prefs is None:
+            self.report({'ERROR'}, "Addon preferences not available")
+            return {'CANCELLED'}
         if self.pie_menu == "quick_camera":
             addon_prefs.quick_camera_key = ''
             addon_prefs.quick_camera_ctrl = False
@@ -2504,6 +2503,71 @@ class OBJECT_OT_adjust_fstop(Operator):
             self.initial_fstop = self.camera.data.dof.aperture_fstop
             self.camera.data.dof.use_dof = True  # Enable DoF
             self.display_text = f"F-Stop: f/{self.initial_fstop:.1f}"
+            args = (self, context)
+            self._handle = bpy.types.SpaceView3D.draw_handler_add(self.draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
+            context.window_manager.modal_handler_add(self)
+            return {'RUNNING_MODAL'}
+        else:
+            self.report({'WARNING'}, "No active camera")
+            return {'CANCELLED'}
+
+    def draw_callback_px(self, op, context):
+        font_id = 0
+        blf.color(font_id, 1, 1, 1, 1)
+        
+        # Get the dimensions of the region
+        region = context.region
+        width = region.width
+        height = region.height
+        
+        # Calculate text dimensions
+        blf.size(font_id, 20)
+        text_width, text_height = blf.dimensions(font_id, self.display_text)
+        
+        # Position text at the bottom center
+        x = (width - text_width) / 2
+        y = 70  # Adjust this value to move the text up or down
+        
+        blf.position(font_id, x, y, 0)
+        blf.draw(font_id, self.display_text)
+
+class OBJECT_OT_adjust_passepartout(Operator):
+    bl_idname = "object.adjust_passepartout"
+    bl_label = "Adjust Passepartout"
+    bl_description = "Drag to adjust the active camera's passepartout alpha"
+
+    def modal(self, context, event):
+        try:
+            context.area.tag_redraw()
+
+            if event.type == 'MOUSEMOVE':
+                sensitivity = 0.001 if event.shift else 0.005
+                delta = (event.mouse_x - event.mouse_prev_x) * sensitivity
+                self.camera.data.passepartout_alpha = min(1.0, max(0.0, self.camera.data.passepartout_alpha + delta))
+                self.display_text = f"Passepartout: {self.camera.data.passepartout_alpha:.2f}"
+            elif event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
+                if hasattr(self, '_handle'):
+                    bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
+                return {'FINISHED'}
+            elif event.type in {'RIGHTMOUSE', 'ESC'}:
+                self.camera.data.passepartout_alpha = self.initial_value
+                if hasattr(self, '_handle'):
+                    bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
+                return {'CANCELLED'}
+
+            return {'RUNNING_MODAL'}
+        except Exception as e:
+            # Ensure handler is removed on error
+            if hasattr(self, '_handle'):
+                bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
+            self.report({'ERROR'}, f"Error in modal operator: {str(e)}")
+            return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        self.camera = context.scene.camera or context.view_layer.objects.active
+        if self.camera and self.camera.type == 'CAMERA':
+            self.initial_value = self.camera.data.passepartout_alpha
+            self.display_text = f"Passepartout: {self.initial_value:.2f}"
             args = (self, context)
             self._handle = bpy.types.SpaceView3D.draw_handler_add(self.draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
             context.window_manager.modal_handler_add(self)
@@ -2920,7 +2984,7 @@ def apply_settings(obj, settings):
             elif hasattr(obj, key):
                 setattr(obj, key, value)
         except Exception as e:
-            print(f"Failed to set {key}: {e}")
+            logging.getLogger(__name__).warning("Failed to set %s: %s", key, e)
 
 
 
@@ -3450,6 +3514,7 @@ classes = (
     OBJECT_OT_dof_focus_object_picker,
     OBJECT_OT_adjust_focal_length,
     OBJECT_OT_adjust_fstop,
+    OBJECT_OT_adjust_passepartout,
     OBJECT_OT_set_dof_object,
     OBJECT_OT_toggle_lock_camera_to_view,
     OBJECT_OT_select_active_camera,

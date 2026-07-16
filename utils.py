@@ -3,6 +3,7 @@ import os
 import tempfile
 from datetime import datetime
 import bpy
+import logging
 import re
 
 def ensure_output_directory(directory):
@@ -52,7 +53,15 @@ def generate_output_filename(directory, suffix="output"):
 
 def report_error(operator, message):
     operator.report({'ERROR'}, message)
-    print(f"ERROR: {message}")
+    logging.getLogger(__name__).error("%s", message)
+
+
+def get_addon_preferences(context):
+    """Return this add-on's preferences if available, otherwise None."""
+    try:
+        return context.preferences.addons[__package__].preferences
+    except (KeyError, AttributeError):
+        return None
 
 # rendertoolsprop
 

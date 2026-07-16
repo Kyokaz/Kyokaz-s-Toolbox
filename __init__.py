@@ -1,7 +1,9 @@
+# pyright: reportInvalidTypeForm=false
+
 bl_info = {
     "name": "KyokazToolbox",
     "author": "Kyokaz",
-    "version": (2, 6, 3),
+    "version": (2, 6, 4),
     "blender": (3, 0, 0),
     "location": "",
     "description": "Animation Toolbox",
@@ -9,13 +11,16 @@ bl_info = {
 }
 
 import bpy
+import logging
 from bpy.types import AddonPreferences
 from bpy.props import StringProperty, BoolProperty, PointerProperty
 from . import operators
 from . import panels
+from .utils import get_addon_preferences
 from . import utils
 
 addon_keymaps = []
+
 
 def _redraw_viewports(context):
     """Helper function to redraw all 3D viewports."""
@@ -24,11 +29,11 @@ def _redraw_viewports(context):
             if area.type == 'VIEW_3D':
                 area.tag_redraw()
 
+
 class MyAddonPreferences(AddonPreferences):
     bl_idname = __package__
 
     # Quick Camera Pie Menu
-
     quick_camera_key: StringProperty(
         name="Quick Camera Key",
         default='V',
@@ -49,9 +54,8 @@ class MyAddonPreferences(AddonPreferences):
         default=False,
         update=lambda self, context: update_keymap(self, context)
     )
-    
-    # Camera Controls
 
+    # Camera Controls
     camera_controls_key: StringProperty(
         name="Camera Controls Key",
         default='V',
@@ -71,15 +75,14 @@ class MyAddonPreferences(AddonPreferences):
         name="Shift",
         default=True,
         update=lambda self, context: update_keymap(self, context)
-    )   
-    
+    )
+
     capture_key: BoolProperty(
         name="Capture Key",
         default=False
-    )  
-    
-    # Favorite Camera
+    )
 
+    # Favorite Camera
     favorite_camera_key: StringProperty(
         name="Favorite Camera Key",
         default='V',
@@ -145,14 +148,14 @@ class MyAddonPreferences(AddonPreferences):
         default=True,
         update=lambda self, context: operators.toggle_camera_info_overlay(self.show_camera_info_overlay)
     )
-    
+
     show_camera_notes: BoolProperty(
         name="Show Camera Notes",
         description="Show camera notes overlay in viewport when in camera view",
         default=True,
         update=lambda self, context: operators.toggle_camera_notes_overlay(self.show_camera_notes)
     )
-    
+
     # Camera Info Overlay Settings
     camera_info_position_x: bpy.props.IntProperty(
         name="Position X",
@@ -162,7 +165,7 @@ class MyAddonPreferences(AddonPreferences):
         max=4000,
         update=lambda self, context: _redraw_viewports(context)
     )
-    
+
     camera_info_position_y: bpy.props.IntProperty(
         name="Position Y",
         description="Vertical position from bottom of the camera info overlay",
@@ -171,7 +174,7 @@ class MyAddonPreferences(AddonPreferences):
         max=4000,
         update=lambda self, context: _redraw_viewports(context)
     )
-    
+
     camera_info_font_size: bpy.props.IntProperty(
         name="Font Size",
         description="Font size for camera info text",
@@ -180,14 +183,14 @@ class MyAddonPreferences(AddonPreferences):
         max=72,
         update=lambda self, context: _redraw_viewports(context)
     )
-    
+
     camera_info_single_line: BoolProperty(
         name="Single Line Layout",
         description="Display all info in a single line instead of multiple lines",
         default=False,
         update=lambda self, context: _redraw_viewports(context)
     )
-    
+
     camera_info_separator: StringProperty(
         name="Separator",
         description="Separator character for single line layout",
@@ -195,7 +198,7 @@ class MyAddonPreferences(AddonPreferences):
         maxlen=10,
         update=lambda self, context: _redraw_viewports(context)
     )
-    
+
     # Info display toggles
     camera_info_show_name: BoolProperty(
         name="Show Camera/Shot Name",
@@ -203,35 +206,35 @@ class MyAddonPreferences(AddonPreferences):
         default=True,
         update=lambda self, context: _redraw_viewports(context)
     )
-    
+
     camera_info_show_frames: BoolProperty(
         name="Show Frame Range",
         description="Display frame range for shots",
         default=True,
         update=lambda self, context: _redraw_viewports(context)
     )
-    
+
     camera_info_show_focal: BoolProperty(
         name="Show Focal Length",
         description="Display focal length or ortho scale",
         default=True,
         update=lambda self, context: _redraw_viewports(context)
     )
-    
+
     camera_info_show_focus: BoolProperty(
         name="Show Focus Distance",
         description="Display focus distance when DoF is enabled",
         default=True,
         update=lambda self, context: _redraw_viewports(context)
     )
-    
+
     camera_info_show_fstop: BoolProperty(
         name="Show F-Stop",
         description="Display F-Stop when DoF is enabled",
         default=True,
         update=lambda self, context: _redraw_viewports(context)
     )
-    
+
     camera_info_background_color: bpy.props.FloatVectorProperty(
         name="Background Color",
         description="Color and opacity of the background",
@@ -242,7 +245,7 @@ class MyAddonPreferences(AddonPreferences):
         default=(0.0, 0.0, 0.0, 0.6),
         update=lambda self, context: _redraw_viewports(context)
     )
-    
+
     camera_info_font_color: bpy.props.FloatVectorProperty(
         name="Font Color",
         description="Color and opacity of the text",
@@ -252,6 +255,57 @@ class MyAddonPreferences(AddonPreferences):
         max=1.0,
         default=(1.0, 1.0, 1.0, 1.0),
         update=lambda self, context: _redraw_viewports(context)
+    )
+
+    # Default Camera Settings
+    default_passepartout: bpy.props.FloatProperty(
+        name="Passepartout",
+        description="Default passepartout alpha for new cameras",
+        default=0.5,
+        min=0.0,
+        max=1.0
+    )
+
+    default_type: bpy.props.EnumProperty(
+        name="Camera Type",
+        items=[
+            ('PERSP', "Perspective", "Perspective camera"),
+            ('ORTHO', "Orthographic", "Orthographic camera"),
+            ('PANO', "Panoramic", "Panoramic camera")
+        ],
+        default='PERSP'
+    )
+
+    default_clip_start: bpy.props.FloatProperty(
+        name="Clip Start",
+        description="Default clip start for new cameras",
+        default=0.1,
+        min=0.01,
+        max=1000.0
+    )
+
+    default_clip_end: bpy.props.FloatProperty(
+        name="Clip End",
+        description="Default clip end for new cameras",
+        default=1000.0,
+        min=1.0,
+        max=10000.0
+    )
+
+    default_lens: bpy.props.FloatProperty(
+        name="Focal Length",
+        description="Default focal length for new perspective cameras",
+        default=50.0,
+        min=1.0,
+        max=5000.0
+    )
+
+    default_ortho_scale: bpy.props.FloatProperty(
+        name="Ortho Scale",
+        description="Default orthographic scale for new orthographic cameras",
+        default=6.0,
+        min=0.01,
+        max=1000.0
     )
 
     def draw(self, context):
@@ -277,15 +331,13 @@ class MyAddonPreferences(AddonPreferences):
         if self.show_camera_info_overlay:
             sub_box = box.box()
             sub_box.label(text="Camera Info Overlay Settings:", icon='PREFERENCES')
-            
-            # Layout options
+
             col = sub_box.column(align=True)
             col.label(text="Layout:")
             col.prop(self, "camera_info_single_line")
             if self.camera_info_single_line:
                 col.prop(self, "camera_info_separator", text="Separator")
-            
-            # Position and appearance
+
             col = sub_box.column(align=True)
             col.label(text="Position & Appearance:")
             row = col.row(align=True)
@@ -294,8 +346,7 @@ class MyAddonPreferences(AddonPreferences):
             col.prop(self, "camera_info_font_size")
             col.prop(self, "camera_info_font_color", text="Font Color")
             col.prop(self, "camera_info_background_color", text="Background")
-            
-            # Info display options
+
             col = sub_box.column(align=True)
             col.label(text="Display Options:")
             col.prop(self, "camera_info_show_name")
@@ -303,6 +354,23 @@ class MyAddonPreferences(AddonPreferences):
             col.prop(self, "camera_info_show_focal")
             col.prop(self, "camera_info_show_focus")
             col.prop(self, "camera_info_show_fstop")
+
+        box = layout.box()
+        box.label(text="Default Camera Settings:")
+        box.prop(self, "default_type")
+
+        row = box.row(align=True)
+        row.prop(self, "default_passepartout")
+
+        row = box.row()
+        if self.default_type == 'ORTHO':
+            row.prop(self, "default_ortho_scale")
+        else:
+            row.prop(self, "default_lens")
+
+        row = box.row(align=True)
+        row.prop(self, "default_clip_start")
+        row.prop(self, "default_clip_end")
 
         box = layout.box()
         row = box.row()
@@ -315,8 +383,7 @@ class MyAddonPreferences(AddonPreferences):
         box = layout.box()
         row = box.row()
         row.label(text="Camera Tools Settings:")
-        
-        # Quick Camera Pie Menu keybind
+
         row = box.row()
         row.label(text="Quick Camera Pie Menu Keybind:")
         if self.capture_key:
@@ -329,8 +396,7 @@ class MyAddonPreferences(AddonPreferences):
         row.prop(self, "quick_camera_ctrl")
         row.prop(self, "quick_camera_alt")
         row.prop(self, "quick_camera_shift")
-        
-        # Camera Controls Pie Menu keybind
+
         row = box.row()
         row.label(text="Camera Controls Pie Menu Keybind:")
         if self.capture_key:
@@ -344,7 +410,6 @@ class MyAddonPreferences(AddonPreferences):
         row.prop(self, "camera_controls_alt")
         row.prop(self, "camera_controls_shift")
 
-        # Favorite Camera keybind
         row = box.row()
         row.label(text="Favorite Camera Pie Menu Keybind:")
         if self.capture_key:
@@ -366,30 +431,25 @@ class MyAddonPreferences(AddonPreferences):
 
 def draw_viewport_header(self, context):
     """Draw playblast and snapshot buttons in the 3D View header."""
-    try:
-        preferences = context.preferences.addons[__package__].preferences
-        layout = self.layout
-        if preferences.show_viewport_button:
-            layout = layout.row(align=True)
-            layout.operator("object.playblast_confirm", text="Playblast", icon='RENDER_ANIMATION')
-            layout.operator("object.playblast_settings", text="", icon='PREFERENCES')
-            layout.operator("object.snapshot_render", text="Snapshot", icon='RENDER_RESULT')
-            layout.operator("object.snapshot_render_settings", text="", icon='PREFERENCES')
-    except (KeyError, AttributeError):
-        # Silently fail if preferences not available
-        pass
+    preferences = get_addon_preferences(context)
+    if not preferences or not preferences.show_viewport_button:
+        return
+
+    layout = self.layout.row(align=True)
+    layout.operator("object.playblast_confirm", text="Playblast", icon='RENDER_ANIMATION')
+    layout.operator("object.playblast_settings", text="", icon='PREFERENCES')
+    layout.operator("object.snapshot_render", text="Snapshot", icon='RENDER_RESULT')
+    layout.operator("object.snapshot_render_settings", text="", icon='PREFERENCES')
 
 def draw_local_camera_button(self, context):
     """Draw local camera pin button in the 3D View header."""
-    try:
-        preferences = context.preferences.addons[__package__].preferences
-        if preferences.show_pin_button:
-            if hasattr(context, 'space_data') and hasattr(context.space_data, 'use_local_camera'):
-                icon = 'PINNED' if context.space_data.use_local_camera else 'UNPINNED'
-                self.layout.operator("object.toggle_local_camera", text="", icon=icon)
-    except (KeyError, AttributeError):
-        # Silently fail if preferences not available
-        pass
+    preferences = get_addon_preferences(context)
+    if not preferences or not preferences.show_pin_button:
+        return
+
+    if hasattr(context, 'space_data') and hasattr(context.space_data, 'use_local_camera'):
+        icon = 'PINNED' if context.space_data.use_local_camera else 'UNPINNED'
+        self.layout.operator("object.toggle_local_camera", text="", icon=icon)
 
 def draw_set_frame_buttons(self, context):
     layout = self.layout
@@ -402,10 +462,13 @@ def register_keymap():
     try:
         wm = bpy.context.window_manager
         if not wm or not wm.keyconfigs or not wm.keyconfigs.addon:
-            print("Warning: Cannot register keymaps - window manager not available")
+            logging.warning("Cannot register keymaps - window manager not available")
             return
 
-        addon_prefs = bpy.context.preferences.addons[__package__].preferences
+        addon_prefs = get_addon_preferences(bpy.context)
+        if addon_prefs is None:
+            logging.warning("Cannot register keymaps - addon preferences not available")
+            return
 
         km = wm.keyconfigs.addon.keymaps.new(name='3D View', space_type='VIEW_3D')
 
@@ -419,7 +482,7 @@ def register_keymap():
                 kmi.properties.name = "VIEW3D_MT_PIE_QuickCamera"
                 addon_keymaps.append((km, kmi))
             except Exception as e:
-                print(f"Warning: Failed to register Quick Camera keymap: {e}")
+                logging.warning("Failed to register Quick Camera keymap: %s", e)
 
         # Camera Controls Pie Menu
         if addon_prefs.camera_controls_key:
@@ -431,7 +494,7 @@ def register_keymap():
                 kmi.properties.name = "VIEW3D_MT_PIE_camera_controls"
                 addon_keymaps.append((km, kmi))
             except Exception as e:
-                print(f"Warning: Failed to register Camera Controls keymap: {e}")
+                logging.warning("Failed to register Camera Controls keymap: %s", e)
 
         # Favorite Camera Pie Menu
         if addon_prefs.favorite_camera_key:
@@ -443,9 +506,9 @@ def register_keymap():
                 kmi.properties.name = "VIEW3D_MT_PIE_favorite_camera"
                 addon_keymaps.append((km, kmi))
             except Exception as e:
-                print(f"Warning: Failed to register Favorite Camera keymap: {e}")
+                logging.warning("Failed to register Favorite Camera keymap: %s", e)
     except (KeyError, AttributeError) as e:
-        print(f"Warning: Cannot register keymaps - addon preferences not available: {e}")
+        logging.warning("Cannot register keymaps - addon preferences not available: %s", e)
 
 def unregister_keymap():
     for km, kmi in addon_keymaps:
@@ -517,13 +580,16 @@ def register():
     
     # Register camera info overlay if enabled
     try:
-        preferences = bpy.context.preferences.addons[__package__].preferences
+        preferences = get_addon_preferences(bpy.context)
+        if preferences is None:
+            operators.register_camera_info_overlay()
+            operators.register_camera_notes_overlay()
+            return
         if preferences.show_camera_info_overlay:
             operators.register_camera_info_overlay()
         if preferences.show_camera_notes:
             operators.register_camera_notes_overlay()
-    except (KeyError, AttributeError):
-        # Default to enabled if preferences not available
+    except AttributeError:
         operators.register_camera_info_overlay()
         operators.register_camera_notes_overlay()
 
@@ -563,4 +629,3 @@ def unregister():
 
 if __name__ == "__main__":
     register()
-

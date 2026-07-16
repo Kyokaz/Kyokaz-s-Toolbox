@@ -1,7 +1,7 @@
 import bpy
 from bpy.types import Panel, UIList, PropertyGroup, Operator
 from bpy.props import BoolProperty, StringProperty, IntProperty, FloatVectorProperty, EnumProperty
-from .utils import draw_property, draw_operator
+from .utils import draw_property, draw_operator, get_addon_preferences
 from . import operators
 
 class OBJECT_PT_BasePanel(Panel):
@@ -100,9 +100,11 @@ class OBJECT_PT_RenderToolsPanel(bpy.types.Panel):
     @classmethod
     def poll(cls, context):
         try:
-            preferences = context.preferences.addons[__package__].preferences
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                return True  # Default to showing if preferences not found
             return preferences.show_render_tools_n_panel
-        except (KeyError, AttributeError):
+        except AttributeError:
             return True  # Default to showing if preferences not found
 
     def draw_header(self, context):
@@ -158,9 +160,11 @@ class OBJECT_PT_CameraTools(Panel):
     @classmethod
     def poll(cls, context):
         try:
-            preferences = context.preferences.addons[__package__].preferences
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                return True  # Default to showing if preferences not found
             return preferences.show_quick_camera_n_panel
-        except (KeyError, AttributeError):
+        except AttributeError:
             return True  # Default to showing if preferences not found
 
     def draw_header(self, context):
@@ -174,7 +178,9 @@ class OBJECT_PT_CameraTools(Panel):
 
         # Panel Visibility Toggle
         try:
-            preferences = context.preferences.addons[__package__].preferences
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                return
             
             split = layout.split(factor=0.25, align=True)
             
@@ -265,23 +271,30 @@ class OBJECT_PT_DefaultCameraSettings(Panel):
 
     def draw(self, context):
         layout = self.layout
-        props = context.scene.custom_name_props
-        
-        layout.prop(props, "default_type")
-        
+        try:
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                layout.label(text="Preferences not available", icon='ERROR')
+                return
+        except (KeyError, AttributeError):
+            layout.label(text="Preferences not available", icon='ERROR')
+            return
+
+        layout.prop(preferences, "default_type")
+
         row = layout.row(align=True)
-        row.prop(props, "default_passepartout")
+        row.prop(preferences, "default_passepartout")
         row.operator("object.apply_passepartout_to_all_cameras", text="", icon='CHECKMARK')
-        
+
         row = layout.row()
-        if props.default_type == 'ORTHO':
-            row.prop(props, "default_ortho_scale")
+        if preferences.default_type == 'ORTHO':
+            row.prop(preferences, "default_ortho_scale")
         else:
-            row.prop(props, "default_lens")
-        
+            row.prop(preferences, "default_lens")
+
         row = layout.row(align=True)
-        row.prop(props, "default_clip_start")
-        row.prop(props, "default_clip_end")
+        row.prop(preferences, "default_clip_start")
+        row.prop(preferences, "default_clip_end")
         row.operator("object.apply_clipping_to_all_cameras", text="", icon='CHECKMARK')
 
 class OBJECT_PT_ActiveCameraSettings(Panel):
@@ -334,26 +347,32 @@ class OBJECT_PT_CameraInfoOverlay(Panel):
     @classmethod
     def poll(cls, context):
         try:
-            preferences = context.preferences.addons[__package__].preferences
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                return True  # Default to showing if preferences not found
             return preferences.show_camera_info_overlay_n_panel
-        except (KeyError, AttributeError):
+        except AttributeError:
             return True  # Default to showing if preferences not found
 
     def draw_header(self, context):
         layout = self.layout
         try:
-            preferences = context.preferences.addons[__package__].preferences
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                return
             row = layout.row(align=True)
             row.prop(preferences, "show_camera_info_overlay", text="", icon='CAMERA_DATA')
             row.prop(preferences, "show_camera_notes", text="", icon='TEXT')
-        except (KeyError, AttributeError):
+        except AttributeError:
             pass
 
     def draw(self, context):
         layout = self.layout
         
         try:
-            preferences = context.preferences.addons[__package__].preferences
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                return
             
             # Layout options
             box = layout.box()
@@ -478,9 +497,11 @@ class OBJECT_PT_ShotList(Panel):
     @classmethod
     def poll(cls, context):
         try:
-            preferences = context.preferences.addons[__package__].preferences
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                return True  # Default to showing if preferences not found
             return preferences.show_shot_list_n_panel
-        except (KeyError, AttributeError):
+        except AttributeError:
             return True  # Default to showing if preferences not found
 
     def draw_header(self, context):
@@ -576,7 +597,7 @@ class OBJECT_UL_CameraList(UIList):
 
     def filter_items(self, context, data, propname):
         helpers = bpy.types.UI_UL_list
-        objects = context.scene.objects
+        objects = getattr(data, propname)
         props = context.scene.custom_name_props
         selected_collection = props.get_camera_list_collection(context)
         
@@ -610,9 +631,11 @@ class OBJECT_PT_CameraList(Panel):
     @classmethod
     def poll(cls, context):
         try:
-            preferences = context.preferences.addons[__package__].preferences
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                return True  # Default to showing if preferences not found
             return preferences.show_camera_list_n_panel
-        except (KeyError, AttributeError):
+        except AttributeError:
             return True  # Default to showing if preferences not found
 
     def draw_header(self, context):
@@ -711,10 +734,70 @@ class OBJECT_OT_move_note(bpy.types.Operator):
             
         return {'FINISHED'}
 
-class OBJECT_PT_Notes(Panel):
-    """Unified notes panel that works in both Camera List and Shot List contexts"""
+def draw_camera_notes_panel(layout, context):
+    """Draw the shared camera notes UI for panel wrappers."""
+    scene = context.scene
+    camera = scene.camera
+
+    if not (camera and camera.type == 'CAMERA'):
+        return
+
+    box = layout.box()
+    box.label(text=f"Active Camera: {camera.name}", icon='CAMERA_DATA')
+
+    row = box.row()
+    row.template_list("OBJECT_UL_camera_notes", "", scene, "camera_notes", scene, "active_note_index", rows=5)
+
+    col = row.column(align=True)
+    op = col.operator("object.add_camera_note", text="", icon='ADD')
+    op.camera_name = camera.name
+
+    active_note_valid = False
+    if 0 <= scene.active_note_index < len(scene.camera_notes):
+        active_note = scene.camera_notes[scene.active_note_index]
+        if active_note.camera_name == camera.name:
+            active_note_valid = True
+            op = col.operator("object.remove_camera_note", text="", icon='REMOVE')
+            op.note_index = scene.active_note_index
+
+    col.separator()
+
+    if active_note_valid:
+        op = col.operator("object.move_note", text="", icon='TRIA_UP')
+        op.direction = 'UP'
+        op.note_index = scene.active_note_index
+
+        op = col.operator("object.move_note", text="", icon='TRIA_DOWN')
+        op.direction = 'DOWN'
+        op.note_index = scene.active_note_index
+
+        active_note = scene.camera_notes[scene.active_note_index]
+        settings_box = layout.box()
+        settings_box.label(text="Note Settings:", icon='PREFERENCES')
+
+        col = settings_box.column(align=True)
+        col.prop(active_note, "text", text="Text")
+
+        row = col.row(align=True)
+        row.prop(active_note, "position_x", text="X")
+        row.prop(active_note, "position_y", text="Y")
+
+        col.prop(active_note, "font_size", text="Size")
+        col.prop(active_note, "font_color", text="Color")
+
+        col.separator()
+        col.prop(active_note, "show_background", text="Show Background")
+        if active_note.show_background:
+            col.prop(active_note, "background_color", text="BG Color")
+
+    camera_notes_count = sum(1 for note in scene.camera_notes if note.camera_name == camera.name)
+    layout.label(text=f"Total: {camera_notes_count} notes")
+
+# Create parent panel instances for Camera List and Shot List
+class OBJECT_PT_CameraNotes(Panel):
+    """Camera notes panel."""
     bl_label = "Notes"
-    bl_idname = "OBJECT_PT_Notes"
+    bl_idname = "OBJECT_PT_CameraNotes"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Toolbox'
@@ -722,90 +805,21 @@ class OBJECT_PT_Notes(Panel):
 
     @classmethod
     def poll(cls, context):
-        # Show panel if there's an active camera in the scene
         return context.scene.camera and context.scene.camera.type == 'CAMERA'
 
     def draw_header(self, context):
         layout = self.layout
         try:
-            preferences = context.preferences.addons[__package__].preferences
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                layout.label(icon='TEXT')
+                return
             layout.prop(preferences, "show_camera_notes", text="")
-        except (KeyError, AttributeError):
+        except AttributeError:
             layout.label(icon='TEXT')
 
     def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        
-        # Use the active scene camera
-        camera = scene.camera
-        
-        if camera and camera.type == 'CAMERA':
-            box = layout.box()
-            box.label(text=f"Active Camera: {camera.name}", icon='CAMERA_DATA')
-            
-            # Use template_list for scrollable list (filter is handled in the UIList)
-            row = box.row()
-            row.template_list("OBJECT_UL_camera_notes", "", scene, "camera_notes", scene, "active_note_index", rows=5)
-            
-            # Add/Remove/Move buttons
-            col = row.column(align=True)
-            op = col.operator("object.add_camera_note", text="", icon='ADD')
-            op.camera_name = camera.name
-            
-            # Check if active note belongs to this camera
-            active_note_valid = False
-            if 0 <= scene.active_note_index < len(scene.camera_notes):
-                active_note = scene.camera_notes[scene.active_note_index]
-                if active_note.camera_name == camera.name:
-                    active_note_valid = True
-                    op = col.operator("object.remove_camera_note", text="", icon='REMOVE')
-                    op.note_index = scene.active_note_index
-            
-            col.separator()
-            
-            if active_note_valid:
-                op = col.operator("object.move_note", text="", icon='TRIA_UP')
-                op.direction = 'UP'
-                op.note_index = scene.active_note_index
-                
-                op = col.operator("object.move_note", text="", icon='TRIA_DOWN')
-                op.direction = 'DOWN'
-                op.note_index = scene.active_note_index
-            
-            # Settings for selected note
-            if active_note_valid:
-                active_note = scene.camera_notes[scene.active_note_index]
-                settings_box = layout.box()
-                settings_box.label(text="Note Settings:", icon='PREFERENCES')
-                
-                col = settings_box.column(align=True)
-                col.prop(active_note, "text", text="Text")
-                
-                row = col.row(align=True)
-                row.prop(active_note, "position_x", text="X")
-                row.prop(active_note, "position_y", text="Y")
-                
-                col.prop(active_note, "font_size", text="Size")
-                col.prop(active_note, "font_color", text="Color")
-                
-                col.separator()
-                col.prop(active_note, "show_background", text="Show Background")
-                if active_note.show_background:
-                    col.prop(active_note, "background_color", text="BG Color")
-            
-            # Count notes for this camera
-            camera_notes_count = sum(1 for note in scene.camera_notes if note.camera_name == camera.name)
-            layout.label(text=f"Total: {camera_notes_count} notes")
-
-# Create parent panel instances for Camera List and Shot List
-class OBJECT_PT_CameraNotes(OBJECT_PT_Notes):
-    bl_idname = "OBJECT_PT_CameraNotes"
-    bl_parent_id = "OBJECT_PT_CameraList"
-
-class OBJECT_PT_ShotNotes(OBJECT_PT_Notes):
-    bl_idname = "OBJECT_PT_ShotNotes"
-    bl_parent_id = "OBJECT_PT_ShotList"
+        draw_camera_notes_panel(self.layout, context)
 
 class ViewportRenderSettings(PropertyGroup):
     output_directory: StringProperty(
@@ -896,7 +910,7 @@ class KYOKAZ_PT_ToolboxScenePanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="Kyokaz's Toolbox version 2.6.3", icon="INFO")
+        layout.label(text="Kyokaz's Toolbox version 2.6.4", icon="INFO")
 
 class KYOKAZ_PT_RenderToolsScenePanel(bpy.types.Panel):
     bl_label = "Render Tools"
@@ -1019,11 +1033,13 @@ class KYOKAZ_PT_CameraInfoOverlayScenePanel(bpy.types.Panel):
     def draw_header(self, context):
         layout = self.layout
         try:
-            preferences = context.preferences.addons[__package__].preferences
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                return
             row = layout.row(align=True)
             row.prop(preferences, "show_camera_info_overlay", text="", icon='CAMERA_DATA')
             row.prop(preferences, "show_camera_notes", text="", icon='TEXT')
-        except (KeyError, AttributeError):
+        except AttributeError:
             pass
 
     def draw(self, context):
@@ -1042,9 +1058,12 @@ class KYOKAZ_PT_CameraNotesScenePanel(bpy.types.Panel):
     def draw_header(self, context):
         layout = self.layout
         try:
-            preferences = context.preferences.addons[__package__].preferences
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                layout.label(icon='TEXT')
+                return
             layout.prop(preferences, "show_camera_notes", text="")
-        except (KeyError, AttributeError):
+        except AttributeError:
             layout.label(icon='TEXT')
 
     def draw(self, context):
@@ -1063,15 +1082,18 @@ class KYOKAZ_PT_ShotNotesScenePanel(bpy.types.Panel):
     def draw_header(self, context):
         layout = self.layout
         try:
-            preferences = context.preferences.addons[__package__].preferences
+            preferences = get_addon_preferences(context)
+            if preferences is None:
+                layout.label(icon='TEXT')
+                return
             layout.prop(preferences, "show_camera_notes", text="")
-        except (KeyError, AttributeError):
+        except AttributeError:
             layout.label(icon='TEXT')
 
     def draw(self, context):
         layout = self.layout
-        # Copy the content from OBJECT_PT_ShotNotes
-        OBJECT_PT_ShotNotes.draw(self, context)
+        # Reuse the shared notes UI.
+        OBJECT_PT_CameraNotes.draw(self, context)
 
 classes = (
     KYOKAZ_PT_ToolboxScenePanel,
@@ -1097,9 +1119,7 @@ classes = (
     OBJECT_PT_DefaultCameraSettings,
     OBJECT_PT_ActiveCameraSettings,
     OBJECT_PT_CameraInfoOverlay,
-    OBJECT_PT_Notes,
     OBJECT_PT_CameraNotes,
-    OBJECT_PT_ShotNotes,
     OBJECT_OT_move_note,
     OBJECT_UL_camera_notes,
     OBJECT_UL_CameraList,
