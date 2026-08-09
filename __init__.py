@@ -3,7 +3,7 @@
 bl_info = {
     "name": "KyokazToolbox",
     "author": "Kyokaz",
-    "version": (2, 6, 5),
+    "version": (2, 6, 6),
     "blender": (3, 0, 0),
     "location": "",
     "description": "Animation Toolbox",

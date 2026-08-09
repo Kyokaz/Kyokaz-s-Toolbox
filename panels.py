@@ -981,7 +981,7 @@ class KYOKAZ_PT_ToolboxScenePanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="Kyokaz's Toolbox version 2.6.5", icon="INFO")
+        layout.label(text="Kyokaz's Toolbox version 2.6.6", icon="INFO")
 
 class KYOKAZ_PT_RenderToolsScenePanel(bpy.types.Panel):
     bl_label = "Render Tools"
