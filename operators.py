@@ -3646,6 +3646,199 @@ def draw_render_presets(self, context, layout):
     row.operator("render.export_all_settings", icon='FILE_BACKUP', text="Export Settings")
     row.operator("render.import_all_settings", icon='FILE_REFRESH', text="Import Settings")
 
+
+# --- Copy Base Color to Viewport operator moved here from standalone module ---
+COLOR_NODE_TYPES = {'BSDF_PRINCIPLED', 'BSDF_DIFFUSE', 'EMISSION'}
+COLOR_INPUT_NAMES = ('Base Color', 'Color')
+
+
+def find_source_node(mat):
+    nt = getattr(mat, 'node_tree', None)
+    if not nt:
+        return None
+
+    active = getattr(nt.nodes, 'active', None)
+    if active and active.type in COLOR_NODE_TYPES:
+        return active
+
+    for node in nt.nodes:
+        if node.type in COLOR_NODE_TYPES:
+            return node
+
+    return None
+
+
+def get_color_input(node):
+    for name in COLOR_INPUT_NAMES:
+        if name in node.inputs:
+            return node.inputs[name]
+    return None
+
+
+class MATERIAL_OT_copy_base_color_to_viewport(bpy.types.Operator):
+    bl_idname = "material.copy_base_color_to_viewport"
+    bl_label = "Copy Base Color to Viewport Display (All Materials)"
+    bl_description = "Copy Base Color from each material's active/first Principled BSDF, Diffuse, or Emission node to its Viewport Display"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        settings = context.scene.copy_base_color_settings
+
+        updated = 0
+        skipped = 0
+
+        for mat in bpy.data.materials:
+            if mat is None or not getattr(mat, 'use_nodes', False) or getattr(mat, 'node_tree', None) is None:
+                continue
+
+            node = find_source_node(mat)
+            if node is None:
+                skipped += 1
+                continue
+
+            color_input = get_color_input(node)
+            if color_input is None or getattr(color_input, 'is_linked', False):
+                skipped += 1
+                continue
+
+            r, g, b, a = color_input.default_value
+
+            if settings.copy_alpha and 'Alpha' in node.inputs and not node.inputs['Alpha'].is_linked:
+                a = node.inputs['Alpha'].default_value
+
+            mat.diffuse_color = (r, g, b, a)
+
+            if getattr(settings, 'copy_metallic', False):
+                if 'Metallic' in node.inputs and not node.inputs['Metallic'].is_linked:
+                    mat.metallic = node.inputs['Metallic'].default_value
+            if getattr(settings, 'copy_roughness', False):
+                if 'Roughness' in node.inputs and not node.inputs['Roughness'].is_linked:
+                    mat.roughness = node.inputs['Roughness'].default_value
+
+            updated += 1
+
+        if updated == 0:
+            self.report({'WARNING'}, "No materials updated — nothing matched or all inputs were linked")
+            return {'CANCELLED'}
+
+        msg = f"Updated {updated} material(s)"
+        if skipped:
+            msg += f", skipped {skipped}"
+        self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
+
+class CopyBaseColorSettings(bpy.types.PropertyGroup):
+    copy_alpha: bpy.props.BoolProperty(
+        name="Copy Alpha",
+        description="Also copy the Alpha value into the Viewport Display color",
+        default=False,
+    )
+    copy_metallic: bpy.props.BoolProperty(
+        name="Copy Metallic",
+        description="Also copy the Metallic value into Viewport Display",
+        default=False,
+    )
+    copy_roughness: bpy.props.BoolProperty(
+        name="Copy Roughness",
+        description="Also copy the Roughness value into Viewport Display",
+        default=False,
+    )
+
+
+class MATERIAL_OT_reset_viewport_display_color(bpy.types.Operator):
+    bl_idname = "material.reset_viewport_display_color"
+    bl_label = "Reset Viewport Display Color (All Materials)"
+    bl_description = "Reset materials' Viewport Display color and common PBR values to defaults"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event)
+
+    def execute(self, context):
+        reset_count = 0
+        for mat in bpy.data.materials:
+            if mat is None:
+                continue
+            try:
+                # Reset viewport diffuse color to white
+                mat.diffuse_color = (1.0, 1.0, 1.0, 1.0)
+                # Reset common PBR properties if present
+                if hasattr(mat, 'metallic'):
+                    mat.metallic = 0.0
+                if hasattr(mat, 'roughness'):
+                    mat.roughness = 0.5
+                reset_count += 1
+            except Exception:
+                continue
+
+        self.report({'INFO'}, f"Reset {reset_count} material(s) to default viewport color")
+        return {'FINISHED'}
+
+
+class MATERIAL_OT_copy_base_color_to_viewport_selected(bpy.types.Operator):
+    bl_idname = "material.copy_base_color_to_viewport_selected"
+    bl_label = "Copy Base Color to Viewport Display (Selected Objects)"
+    bl_description = "Copy Base Color from materials on selected objects to their Viewport Display"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        settings = context.scene.copy_base_color_settings
+
+        mats = set()
+        for obj in context.selected_objects:
+            for slot in getattr(obj, 'material_slots', []):
+                if slot.material:
+                    mats.add(slot.material)
+
+        if not mats:
+            self.report({'WARNING'}, "No materials found on selected objects")
+            return {'CANCELLED'}
+
+        updated = 0
+        skipped = 0
+
+        for mat in mats:
+            if mat is None or not getattr(mat, 'use_nodes', False) or getattr(mat, 'node_tree', None) is None:
+                skipped += 1
+                continue
+
+            node = find_source_node(mat)
+            if node is None:
+                skipped += 1
+                continue
+
+            color_input = get_color_input(node)
+            if color_input is None or getattr(color_input, 'is_linked', False):
+                skipped += 1
+                continue
+
+            r, g, b, a = color_input.default_value
+
+            if settings.copy_alpha and 'Alpha' in node.inputs and not node.inputs['Alpha'].is_linked:
+                a = node.inputs['Alpha'].default_value
+
+            mat.diffuse_color = (r, g, b, a)
+
+            if getattr(settings, 'copy_metallic', False):
+                if 'Metallic' in node.inputs and not node.inputs['Metallic'].is_linked:
+                    mat.metallic = node.inputs['Metallic'].default_value
+            if getattr(settings, 'copy_roughness', False):
+                if 'Roughness' in node.inputs and not node.inputs['Roughness'].is_linked:
+                    mat.roughness = node.inputs['Roughness'].default_value
+
+            updated += 1
+
+        if updated == 0:
+            self.report({'WARNING'}, "No materials updated — nothing matched or all inputs were linked")
+            return {'CANCELLED'}
+
+        msg = f"Updated {updated} material(s) on selected objects"
+        if skipped:
+            msg += f", skipped {skipped}"
+        self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
 classes = (
     FavoriteCameraItem,
     CameraNoteItem,
@@ -3733,6 +3926,10 @@ classes = (
     RENDER_OT_restore_all_presets,
     RENDER_OT_duplicate_preset,
 
+    MATERIAL_OT_reset_viewport_display_color,
+    MATERIAL_OT_copy_base_color_to_viewport_selected,
+    MATERIAL_OT_copy_base_color_to_viewport,
+    CopyBaseColorSettings,
 
 )
 

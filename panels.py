@@ -112,6 +112,18 @@ class OBJECT_PT_RenderToolsPanel(bpy.types.Panel):
         layout.label(icon='RENDER_STILL')
 
     def draw(self, context):
+        # Container panel: individual sections are implemented as sub-panels
+        return
+
+
+class OBJECT_PT_RenderOutputPanel(bpy.types.Panel):
+    bl_label = "Output"
+    bl_parent_id = "OBJECT_PT_render_tools"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Toolbox'
+
+    def draw(self, context):
         layout = self.layout
         settings = context.scene.render_tools_settings
 
@@ -119,22 +131,28 @@ class OBJECT_PT_RenderToolsPanel(bpy.types.Panel):
 
         box = layout.box()
         box.label(text="Render Settings:", icon="RENDER_STILL")
-        # Main operator and Affect Children option
         row = box.row(align=True)
         row.operator("object.disable_render_for_hidden", text="Disable Render for Hidden", icon='HIDE_ON')
         row.prop(settings, "affect_children", text="", icon='OUTLINER_OB_ARMATURE')
 
-        # Exception Collection
         row = box.row(align=True)
         row.prop(settings, "exception_collection", text="")
         row.operator("object.create_exception_collection", text="", icon='COLLECTION_NEW')
         row.operator("object.add_selected_to_exceptions", text="Add Selected", icon='HAND')
 
-        # Tooltip for the Exception Collection
         row = box.row(align=True)
         row.label(text="Exception: Objects in this collection will be ignored", icon='INFO')
 
-        # Viewport Render
+
+class OBJECT_PT_RenderPlayblastPanel(bpy.types.Panel):
+    bl_label = "Playblast"
+    bl_parent_id = "OBJECT_PT_render_tools"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Toolbox'
+
+    def draw(self, context):
+        layout = self.layout
         box = layout.box()
         box.label(text="Playblast:", icon="RENDER_ANIMATION")
         row = box.row(align=True)
@@ -145,8 +163,60 @@ class OBJECT_PT_RenderToolsPanel(bpy.types.Panel):
         row.operator("object.snapshot_render", text="Snapshot", icon='RENDER_RESULT')
         row.operator("object.snapshot_render_settings", text="", icon='PREFERENCES')
 
-        # Add render presets UI
+
+class OBJECT_PT_RenderPresetsPanel(bpy.types.Panel):
+    bl_label = "Presets"
+    bl_parent_id = "OBJECT_PT_render_tools"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Toolbox'
+
+    def draw(self, context):
+        layout = self.layout
         operators.draw_render_presets(self, context, layout)
+
+
+class OBJECT_PT_RenderViewportDisplayPanel(bpy.types.Panel):
+    bl_label = "Viewport Display"
+    bl_parent_id = "OBJECT_PT_render_tools"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Toolbox'
+
+    def draw(self, context):
+        layout = self.layout
+        # The operator and settings are provided by copy_base_color_to_viewport module
+        row = layout.row(align=True)
+        row.operator("material.copy_base_color_to_viewport", text="Sync Base Color to Viewport", icon='NODE_MATERIAL')
+        # small icon buttons: reset all, reset selected
+        row.operator("material.reset_viewport_display_color", text="", icon='LOOP_BACK')
+        row.operator("material.copy_base_color_to_viewport_selected", text="", icon='EYEDROPPER')
+        if hasattr(context.scene, "copy_base_color_settings"):
+            settings = context.scene.copy_base_color_settings
+            layout.prop(settings, "copy_alpha")
+            layout.prop(settings, "copy_metallic")
+            layout.prop(settings, "copy_roughness")
+
+
+class KYOKAZ_PT_RenderViewportDisplayScenePanel(bpy.types.Panel):
+    bl_label = "Viewport Display"
+    bl_parent_id = "KYOKAZ_PT_RenderToolsScenePanel"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "scene"
+
+    def draw(self, context):
+        # Reuse the operator from the copy_base_color_to_viewport module
+        layout = self.layout
+        row = layout.row(align=True)
+        row.operator("material.copy_base_color_to_viewport", text="Sync Base Color to Viewport", icon='NODE_MATERIAL')
+        row.operator("material.reset_viewport_display_color", text="", icon='LOOP_BACK')
+        row.operator("material.copy_base_color_to_viewport_selected", text="", icon='EYEDROPPER')
+        if hasattr(context.scene, "copy_base_color_settings"):
+            settings = context.scene.copy_base_color_settings
+            layout.prop(settings, "copy_alpha")
+            layout.prop(settings, "copy_metallic")
+            layout.prop(settings, "copy_roughness")
 
 
 class OBJECT_PT_CameraTools(Panel):
@@ -926,9 +996,42 @@ class KYOKAZ_PT_RenderToolsScenePanel(bpy.types.Panel):
         layout.label(icon='RENDER_STILL')
 
     def draw(self, context):
-        layout = self.layout
-        # Copy the content from OBJECT_PT_RenderToolsPanel
-        OBJECT_PT_RenderToolsPanel.draw(self, context)
+        # Container panel for Render Tools scene sub-panels
+        return
+
+
+class KYOKAZ_PT_RenderOutputScenePanel(bpy.types.Panel):
+    bl_label = "Output"
+    bl_parent_id = "KYOKAZ_PT_RenderToolsScenePanel"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "scene"
+
+    def draw(self, context):
+        # Reuse view3d draw for Output
+        OBJECT_PT_RenderOutputPanel.draw(self, context)
+
+
+class KYOKAZ_PT_RenderPlayblastScenePanel(bpy.types.Panel):
+    bl_label = "Playblast"
+    bl_parent_id = "KYOKAZ_PT_RenderToolsScenePanel"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "scene"
+
+    def draw(self, context):
+        OBJECT_PT_RenderPlayblastPanel.draw(self, context)
+
+
+class KYOKAZ_PT_RenderPresetsScenePanel(bpy.types.Panel):
+    bl_label = "Presets"
+    bl_parent_id = "KYOKAZ_PT_RenderToolsScenePanel"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "scene"
+
+    def draw(self, context):
+        OBJECT_PT_RenderPresetsPanel.draw(self, context)
 
 class KYOKAZ_PT_QuickCameraScenePanel(bpy.types.Panel):
     bl_label = "Quick Camera"
@@ -1099,6 +1202,9 @@ class KYOKAZ_PT_ShotNotesScenePanel(bpy.types.Panel):
 classes = (
     KYOKAZ_PT_ToolboxScenePanel,
     KYOKAZ_PT_RenderToolsScenePanel,
+    KYOKAZ_PT_RenderOutputScenePanel,
+    KYOKAZ_PT_RenderPlayblastScenePanel,
+    KYOKAZ_PT_RenderPresetsScenePanel,
     KYOKAZ_PT_QuickCameraScenePanel,
     KYOKAZ_PT_AddCameraScenePanel,
     KYOKAZ_PT_DefaultCameraSettingsScenePanel,
@@ -1113,6 +1219,11 @@ classes = (
     OBJECT_PT_interpolation_tools_panel,
     OBJECT_PT_bake_tools_panel,
     OBJECT_PT_RenderToolsPanel,
+    OBJECT_PT_RenderOutputPanel,
+    OBJECT_PT_RenderPlayblastPanel,
+    OBJECT_PT_RenderPresetsPanel,
+    OBJECT_PT_RenderViewportDisplayPanel,
+    KYOKAZ_PT_RenderViewportDisplayScenePanel,
     OBJECT_PT_ShotList,
     OBJECT_PT_CameraList,
     OBJECT_PT_CameraTools,

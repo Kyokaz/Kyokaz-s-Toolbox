@@ -552,6 +552,7 @@ def register():
     bpy.types.Scene.snapshot_settings = bpy.props.PointerProperty(type=panels.SnapshotSettings)
     bpy.types.Scene.render_tools_settings = bpy.props.PointerProperty(type=operators.RenderToolsSettings)
     bpy.types.Scene.viewport_render_settings = bpy.props.PointerProperty(type=panels.ViewportRenderSettings)
+    bpy.types.Scene.copy_base_color_settings = bpy.props.PointerProperty(type=operators.CopyBaseColorSettings)
     bpy.types.Scene.favorite_cameras = bpy.props.CollectionProperty(type=bpy.types.PropertyGroup)
     bpy.types.Scene.render_presets = PointerProperty(type=operators.RenderPresetsCollection)
     bpy.types.Scene.collection_index = bpy.props.IntProperty(
@@ -625,6 +626,7 @@ def unregister():
     del bpy.types.Scene.custom_name_props
     del bpy.types.Scene.render_tools_settings
     del bpy.types.Scene.viewport_render_settings
+    del bpy.types.Scene.copy_base_color_settings
     del bpy.types.Scene.snapshot_settings
     del bpy.types.Scene.collection_index
     del bpy.types.Scene.favorite_cameras
